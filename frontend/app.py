@@ -1254,10 +1254,13 @@ with gr.Blocks(css=CSS + NAV_CSS, title="Hotel Review Dashboard", js=CHAT_JS) as
 
 
 # ── /chat API endpoint ─────────────────────────────────────────────────────
-from fastapi import Request as FRequest
+from fastapi import FastAPI, Request as FRequest
 from fastapi.responses import JSONResponse
+import uvicorn
 
-@demo.app.post("/chat")
+app = FastAPI()
+
+@app.post("/chat")
 async def chat_endpoint(request: FRequest):
     body = await request.json()
     message = body.get("message", "")
@@ -1268,6 +1271,7 @@ async def chat_endpoint(request: FRequest):
         reply = f"(Error: {e})"
     return JSONResponse({"reply": reply})
 
+app = gr.mount_gradio_app(app, demo, path="/")
 
 if __name__ == "__main__":
-    demo.launch()
+    uvicorn.run(app, host="0.0.0.0", port=7860)
