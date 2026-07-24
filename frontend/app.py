@@ -945,15 +945,18 @@ CHAT_JS = """
   const style = document.createElement('style');
   style.textContent = `
     #chat-fab{position:fixed;bottom:24px;right:24px;z-index:9999;width:50px;height:50px;border-radius:50%;background:#1a1208;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;}
-    #chat-popup{position:fixed;bottom:86px;right:24px;z-index:9998;width:360px;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,0.18);display:none;flex-direction:column;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;}
+    #chat-popup{position:fixed;bottom:86px;right:24px;z-index:9998;width:440px;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,0.18);display:none;flex-direction:column;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;}
     #chat-popup.open{display:flex;}
     #chat-head{background:#1a1208;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;}
     #chat-head .t{font-size:15px;font-weight:700;}
     #chat-head .s{font-size:11px;color:#9c8c7a;margin-top:2px;}
     #chat-close{background:none;border:none;color:#9c8c7a;font-size:18px;cursor:pointer;line-height:1;padding:0;}
-    #chat-messages{padding:14px;height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
-    .cm-bot,.cm-user{max-width:88%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.45;}
+    #chat-messages{padding:14px;height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
+    .cm-bot,.cm-user{max-width:88%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.6;}
     .cm-bot{background:#f0ede8;color:#1a1208;align-self:flex-start;}
+    .cm-bot strong{font-weight:700;}
+    .cm-bot ul{margin:4px 0 4px 16px;padding:0;}
+    .cm-bot li{margin:2px 0;}
     .cm-user{background:#1a1208;color:#fff;align-self:flex-end;}
     #chat-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #e8e2da;}
     #chat-text{flex:1;padding:7px 12px;border:1px solid #e8e2da;border-radius:8px;font-size:12px;outline:none;background:#fafaf8;}
@@ -980,6 +983,23 @@ CHAT_JS = """
 
   window.chatHistory = [];
 
+  // Minimal markdown → HTML renderer
+  window.mdToHtml = function(text) {
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      // headings → bold paragraph
+      .replace(/^#{1,3} (.+)$/gm, '<strong>$1</strong>')
+      // bold
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      // bullet lists
+      .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+      // wrap consecutive <li> in <ul>
+      .replace(/(<li>.*<\/li>\n?)+/gs, m => '<ul>' + m + '</ul>')
+      // line breaks
+      .replace(/\n{2,}/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  };
+
   window.chatToggle = function() {
     document.getElementById('chat-popup').classList.toggle('open');
   };
@@ -1002,7 +1022,7 @@ CHAT_JS = """
         body: JSON.stringify({message: msg, history: window.chatHistory})
       });
       const d = await r.json();
-      thinking.textContent = d.reply;
+      thinking.innerHTML = window.mdToHtml(d.reply);
       window.chatHistory.push([msg, d.reply]);
     } catch(e) {
       thinking.textContent = '(Error reaching assistant)';
@@ -1051,7 +1071,7 @@ You have access to the following dashboard data from {STATS['total_reviews']} Bo
 - Topics with negative rating impact (problems to fix): {_prob_str}
 - Top strengths: {_str_str}
 - Best month: {_data['best_month_label']} (score {_data['best_score']}), Worst month: {_data['worst_month_label']} (score {_data['worst_score']})
-Answer concisely and helpfully about review trends, complaints, and guest feedback patterns."""
+Reply in short, clear sentences. Use bullet points sparingly — only when listing 3+ items. Avoid large headers. Keep answers concise and actionable."""
 
 
 def chat_response(message, history):
@@ -1189,7 +1209,7 @@ def sub_filters_visible(page):
     )
 
 
-with gr.Blocks(css=CSS + NAV_CSS, title="Hotel Review Dashboard", js=CHAT_JS) as demo:
+with gr.Blocks(css=CSS + NAV_CSS, title="Hotel Review Dashboard") as demo:
 
     current_page = gr.State("Overview")
 
@@ -1253,10 +1273,131 @@ with gr.Blocks(css=CSS + NAV_CSS, title="Hotel Review Dashboard", js=CHAT_JS) as
     trend_tab_sel.change(update_trends,  inputs=trend_tab_sel, outputs=content_html)
 
 
-# ── /chat API endpoint ─────────────────────────────────────────────────────
+# ── /chat API endpoint + HTML injection middleware ─────────────────────────
 from fastapi import FastAPI, Request as FRequest
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
+
+CHAT_SNIPPET = """
+<script>
+(function() {
+  var STYLES = `
+    #chat-fab{position:fixed;bottom:24px;right:24px;z-index:99999;width:50px;height:50px;border-radius:50%;background:#1a1208;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;}
+    #chat-popup{position:fixed;bottom:86px;right:24px;z-index:99998;width:440px;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,0.18);display:none;flex-direction:column;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;}
+    #chat-popup.open{display:flex;}
+    #chat-head{background:#1a1208;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;}
+    #chat-head .t{font-size:15px;font-weight:700;}
+    #chat-head .s{font-size:11px;color:#9c8c7a;margin-top:2px;}
+    #chat-close{background:none;border:none;color:#9c8c7a;font-size:18px;cursor:pointer;line-height:1;padding:0;}
+    #chat-messages{padding:14px;height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
+    .cm-bot,.cm-user{max-width:88%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.6;}
+    .cm-bot{background:#f0ede8;color:#1a1208;align-self:flex-start;}
+    .cm-bot strong{font-weight:700;}
+    .cm-bot ul{margin:4px 0 4px 16px;padding:0;}
+    .cm-bot li{margin:2px 0;}
+    .cm-user{background:#1a1208;color:#fff;align-self:flex-end;}
+    #chat-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #e8e2da;}
+    #chat-text{flex:1;padding:7px 12px;border:1px solid #e8e2da;border-radius:8px;font-size:12px;outline:none;background:#fafaf8;}
+    #chat-send{width:34px;height:34px;border-radius:8px;background:#c9a48e;border:none;cursor:pointer;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;}
+  `;
+
+  var chatHistory = [];
+
+  function mdToHtml(t) {
+    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/^#{1,3} (.+)$/gm,'<strong>$1</strong>')
+      .replace(/\\*\\*(.+?)\\*\\*/g,'<strong>$1</strong>')
+      .replace(/^[-*] (.+)$/gm,'<li>$1</li>')
+      .replace(/(<li>[\\s\\S]*?<\\/li>\\n?)+/g, function(m){ return '<ul>'+m+'</ul>'; })
+      .replace(/\\n{2,}/g,'<br><br>').replace(/\\n/g,'<br>');
+  }
+
+  function chatToggle() {
+    document.getElementById('chat-popup').classList.toggle('open');
+  }
+
+  async function chatSend() {
+    var inp=document.getElementById('chat-text'), msg=inp.value.trim();
+    if(!msg) return; inp.value='';
+    var box=document.getElementById('chat-messages');
+    box.innerHTML+='<div class="cm-user">'+msg.replace(/</g,'&lt;')+'</div>';
+    box.scrollTop=box.scrollHeight;
+    var el=document.createElement('div'); el.className='cm-bot'; el.textContent='…';
+    box.appendChild(el); box.scrollTop=box.scrollHeight;
+    try {
+      var r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({message:msg,history:chatHistory})});
+      var d=await r.json();
+      el.innerHTML=mdToHtml(d.reply);
+      chatHistory.push([msg,d.reply]);
+    } catch(e){ el.textContent='(Error reaching assistant)'; }
+    box.scrollTop=box.scrollHeight;
+  }
+
+  function injectChat() {
+    if (document.getElementById('chat-fab')) return;
+
+    var style = document.createElement('style');
+    style.textContent = STYLES;
+    document.head.appendChild(style);
+
+    var fab = document.createElement('button');
+    fab.id = 'chat-fab';
+    fab.innerHTML = '💬';
+    fab.onclick = chatToggle;
+    document.body.appendChild(fab);
+
+    var popup = document.createElement('div');
+    popup.id = 'chat-popup';
+    popup.innerHTML = `
+      <div id="chat-head">
+        <div><div class="t">Review Assistant</div><div class="s">AI · hotel analytics</div></div>
+        <button id="chat-close" onclick="chatToggle()">✕</button>
+      </div>
+      <div id="chat-messages">
+        <div class="cm-bot">Hello! I'm your hotel review assistant. Ask me anything about the data — complaints, sentiment trends, guest feedback patterns.</div>
+      </div>
+      <div id="chat-input-row">
+        <input id="chat-text" type="text" placeholder="Ask about complaints, sentiment…"/>
+        <button id="chat-send">&#10148;</button>
+      </div>`;
+    document.body.appendChild(popup);
+
+    document.getElementById('chat-text').addEventListener('keydown', function(e){ if(e.key==='Enter') chatSend(); });
+    document.getElementById('chat-send').addEventListener('click', chatSend);
+
+    window.chatToggle = chatToggle;
+  }
+
+  // Inject immediately and again after Gradio finishes rendering
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ injectChat(); setTimeout(injectChat, 1500); });
+  } else {
+    injectChat();
+    setTimeout(injectChat, 1500);
+  }
+})();
+</script>
+"""
+
+class ChatInjectionMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        ct = response.headers.get("content-type", "")
+        if "text/html" not in ct:
+            return response
+        body = b""
+        async for chunk in response.body_iterator:
+            body += chunk
+        html = body.decode("utf-8")
+        if "</body>" in html and "injectChat" not in html:
+            html = html.replace("</body>", CHAT_SNIPPET + "</body>", 1)
+        headers = dict(response.headers)
+        headers.pop("content-length", None)
+        headers.pop("Content-Length", None)
+        return HTMLResponse(content=html, status_code=response.status_code, headers=headers)
+
 
 app = FastAPI()
 
@@ -1272,6 +1413,7 @@ async def chat_endpoint(request: FRequest):
     return JSONResponse({"reply": reply})
 
 app = gr.mount_gradio_app(app, demo, path="/")
+app.add_middleware(ChatInjectionMiddleware)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=7860)
