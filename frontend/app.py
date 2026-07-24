@@ -1,6 +1,8 @@
 import gradio as gr
 import json
 import os
+import re
+from collections import Counter
 
 # ── Palette (from dataviz skill reference) ──────────────────────────────────
 C_POSITIVE   = "#1baf7a"   # aqua / good
@@ -16,103 +18,242 @@ C_TEXT_MUT   = "#9c8c7a"
 C_GRIDLINE   = "#e8e2da"
 C_BORDER     = "rgba(90,70,50,0.12)"
 
-# ── Mock data ────────────────────────────────────────────────────────────────
-STATS = {
-    "total_reviews": 1842,
-    "avg_rating": 3.9,
-    "negative_rate": 23,
-    "neutral_rate": 19,
-    "sentiment_score": 72,
-    "positive_pct": 58,
-    "neutral_pct": 19,
-    "negative_pct": 23,
-    "mom_change": "+4.2%",
+
+# ── Analysis pipeline (mirrors notebooks/project.ipynb) ──────────────────────
+
+_TOPIC_KEYWORDS = {
+    "wifi":        ["wifi", "wi-fi", "internet", "connection"],
+    "cleanliness": ["clean", "dirty", "filthy", "spotless", "hygiene", "tidy"],
+    "breakfast":   ["breakfast", "buffet", "brunch"],
+    "checkin":     ["check in", "check-in", "reception", "front desk", "arrival"],
+    "noise":       ["noise", "noisy", "loud", "quiet", "sound"],
+    "location":    ["location", "area", "walk", "distance", "metro", "station"],
+    "room":        ["room", "bed", "bedroom", "shower", "bathroom", "toilet"],
+    "staff":       ["staff", "service", "employee", "helpful", "friendly", "rude"],
+}
+_TOPIC_DISPLAY = {
+    "wifi": "Wi-Fi quality", "cleanliness": "Room cleanliness",
+    "breakfast": "Breakfast options", "checkin": "Check-in experience",
+    "noise": "Noise levels", "location": "Location",
+    "room": "Room quality", "staff": "Staff attitude",
+}
+_TOPIC_CATEGORY = {
+    "wifi": "Facilities", "cleanliness": "Housekeeping", "breakfast": "F&B",
+    "checkin": "Service", "noise": "Facilities", "location": "General",
+    "room": "Rooms", "staff": "Service",
+}
+_STOP_WORDS = {
+    "the", "and", "was", "for", "but", "were", "with", "not", "from", "there",
+    "you", "have", "are", "like", "also", "bit", "very", "this", "that", "had",
+    "all", "our", "can", "its", "been", "has", "about", "hotel", "one", "just",
+    "only", "even", "would", "really", "stay", "they", "their", "what", "when",
+    "will", "some", "than", "get", "got", "did", "too", "time", "room", "rooms",
+}
+_NEG_WORDS = {
+    "noisy", "noise", "dirty", "slow", "rude", "broken", "bad", "terrible",
+    "awful", "poor", "disappointing", "small", "cold", "hard", "expensive",
+    "smelly", "crowded", "nothing", "unfortunately",
 }
 
-COMPLAINTS = [
-    ("Noise levels",       312),
-    ("Slow check-in",      278),
-    ("Room cleanliness",   241),
-    ("Wi-Fi quality",      198),
-    ("Breakfast options",  165),
-    ("Air conditioning",   134),
-    ("Parking access",     109),
-    ("Staff attitude",      88),
-]
 
-WORD_CLOUD = [
-    ("noisy",       52, "negative"),
-    ("location",    48, "positive"),
-    ("comfortable", 44, "positive"),
-    ("friendly",    38, "positive"),
-    ("clean",       36, "positive"),
-    ("overpriced",  34, "negative"),
-    ("view",        32, "positive"),
-    ("slow",        30, "negative"),
-    ("spacious",    28, "positive"),
-    ("breakfast",   26, "positive"),
-    ("staff",       25, "positive"),
-    ("expensive",   24, "negative"),
-    ("helpful",     23, "positive"),
-    ("wifi",        22, "negative"),
-    ("parking",     20, "negative"),
-    ("modern",      19, "positive"),
-    ("pool",        18, "positive"),
-    ("dirty",       15, "negative"),
-    ("outdated",    14, "negative"),
-    ("quiet",       13, "positive"),
-]
+def compute_data():
+    import pandas as pd
+    from textblob import TextBlob
 
-REVIEWS = [
-    {"initials": "ML", "name": "Maria L.",  "stars": 2, "date": "Jul 19", "sentiment": "Negative",
-     "text": "The room was noisy all night — couldn't sleep. Staff tried to help but nothing changed."},
-    {"initials": "JK", "name": "James K.",  "stars": 5, "date": "Jul 18", "sentiment": "Positive",
-     "text": "Fantastic location, spotless room, breakfast was excellent. Will return without hesitation."},
-    {"initials": "FO", "name": "Fatima O.", "stars": 3, "date": "Jul 17", "sentiment": "Neutral",
-     "text": "Decent stay overall, though check-in took nearly 40 minutes. Wi-Fi kept dropping."},
-    {"initials": "TV", "name": "Tomáš V.",  "stars": 4, "date": "Jul 16", "sentiment": "Positive",
-     "text": "Comfortable bed, great view. Air conditioning unit was a bit loud at night."},
-    {"initials": "SM", "name": "Sophie M.", "stars": 1, "date": "Jul 15", "sentiment": "Negative",
-     "text": "Room was not ready at 4pm. Bathroom had visible mould near the shower."},
-    {"initials": "KA", "name": "Kwame A.",  "stars": 5, "date": "Jul 14", "sentiment": "Positive",
-     "text": "Pool area was immaculate, staff incredibly warm. Best hotel stay this year."},
-    {"initials": "IH", "name": "Ingrid H.", "stars": 2, "date": "Jul 13", "sentiment": "Negative",
-     "text": "Promised a city-view room, got a wall view. Complaints were ignored."},
-    {"initials": "RL", "name": "Ravi L.",   "stars": 4, "date": "Jul 12", "sentiment": "Positive",
-     "text": "Great central location and friendly front desk. Breakfast variety could be better."},
-    {"initials": "NP", "name": "Nora P.",   "stars": 3, "date": "Jul 11", "sentiment": "Neutral",
-     "text": "Average experience. Room was clean but facilities feel dated."},
-    {"initials": "OB", "name": "Omar B.",   "stars": 1, "date": "Jul 10", "sentiment": "Negative",
-     "text": "AC broke on first night. Maintenance came next day but it was unbearable."},
-    {"initials": "CL", "name": "Claire L.", "stars": 5, "date": "Jul 9",  "sentiment": "Positive",
-     "text": "Exceptional stay from start to finish. Room was pristine, staff superb."},
-    {"initials": "HM", "name": "Hamid M.",  "stars": 3, "date": "Jul 8",  "sentiment": "Neutral",
-     "text": "Parking was a nightmare. Otherwise the room and service were acceptable."},
-]
+    csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "raw", "reviews_clean.csv")
+    df = pd.read_csv(csv_path)
+    df["reviewed_at"] = pd.to_datetime(df["reviewed_at"], errors="coerce")
+    df["review_text"] = df["review_text"].fillna("").str.strip().str.replace(r"\s+", " ", regex=True)
 
-TOPICS = [
-    {"name": "Noise levels",     "category": "Facilities",   "positive_pct": 12, "mentions": 312},
-    {"name": "Slow check-in",    "category": "Service",      "positive_pct": 18, "mentions": 278},
-    {"name": "Room cleanliness", "category": "Housekeeping", "positive_pct": 22, "mentions": 241},
-    {"name": "Wi-Fi quality",    "category": "Facilities",   "positive_pct": 15, "mentions": 198},
-    {"name": "Breakfast options","category": "F&B",          "positive_pct": 38, "mentions": 165},
-    {"name": "Air conditioning", "category": "Facilities",   "positive_pct": 20, "mentions": 134},
-    {"name": "Parking access",   "category": "Facilities",   "positive_pct": 10, "mentions": 109},
-    {"name": "Staff attitude",   "category": "Service",      "positive_pct": 55, "mentions":  88},
-    {"name": "Pool area",        "category": "Facilities",   "positive_pct": 81, "mentions":  76},
-    {"name": "Room view",        "category": "Rooms",        "positive_pct": 78, "mentions":  65},
-    {"name": "Bed comfort",      "category": "Rooms",        "positive_pct": 72, "mentions":  58},
-    {"name": "Location",         "category": "General",      "positive_pct": 90, "mentions": 201},
-]
+    # ── Sentiment (§3) ──────────────────────────────────────────────────────
+    df["sentiment"] = df["review_text"].apply(lambda t: TextBlob(str(t)).sentiment.polarity)
+    # Classify by rating, consistent with notebook §5 bad/good split
+    def _label(row):
+        if row["rating"] >= 9:   return "Positive"
+        elif row["rating"] <= 6: return "Negative"
+        else:                    return "Neutral"
+    df["sent_label"] = df.apply(_label, axis=1)
 
-TREND_MONTHS   = ["Feb", "Mar", "Apr", "May", "Jun", "Jul"]
-TREND_SCORES   = [70,     65,    68,    67,    69,    72  ]
-TREND_POSITIVE = [52,     48,    54,    53,    56,    58  ]
-TREND_NEGATIVE = [28,     32,    27,    26,    24,    23  ]
-TREND_VOLUME   = [120,   180,   210,   260,   310,   420  ]
+    total = len(df)
+    pos_pct = round(df["sent_label"].eq("Positive").sum() / total * 100)
+    neg_pct = round(df["sent_label"].eq("Negative").sum() / total * 100)
+    neu_pct = 100 - pos_pct - neg_pct
+    avg_r5  = round(df["rating"].mean() / 2, 1)
+    sentiment_score = round(df["rating"].mean() / 10 * 100)
 
-RADAR_CATEGORIES = ["Cleanliness", "Service", "Facilities", "Comfort", "Value", "Location"]
-RADAR_VALUES     = [0.55, 0.60, 0.45, 0.72, 0.38, 0.90]
+    # ── Topic detection (§4) ────────────────────────────────────────────────
+    def _detect(text):
+        t = str(text).lower()
+        return [k for k, kws in _TOPIC_KEYWORDS.items() if any(kw in t for kw in kws)]
+    df["topics"] = df["review_text"].apply(_detect)
+
+    # ── Per-topic aggregation + business impact score (§5) ──────────────────
+    overall_avg = df["rating"].mean()
+    topic_rows = []
+    for key in _TOPIC_KEYWORDS:
+        sub = df[df["topics"].apply(lambda x: key in x)]
+        if len(sub) == 0:
+            continue
+        mentions     = len(sub)
+        avg_r        = sub["rating"].mean()
+        r_impact     = avg_r - overall_avg
+        pos_t        = round(sub["sent_label"].eq("Positive").sum() / mentions * 100)
+        avg_sent     = sub["sentiment"].mean()
+        sent_sev     = avg_sent - df["sentiment"].mean()
+        reach_pct    = mentions / total * 100
+        freq_score   = min((mentions / 500) * 100, 100)
+        sent_score   = abs(sent_sev) * 100
+        impact_score = abs(r_impact) * 50
+        reach_score  = min((reach_pct / 50) * 100, 100)
+        biz_score    = impact_score * 0.40 + freq_score * 0.30 + reach_score * 0.20 + sent_score * 0.10
+        topic_rows.append({
+            "key": key, "mentions": mentions, "avg_rating": avg_r,
+            "rating_impact": r_impact, "positive_pct": pos_t,
+            "biz_score": biz_score,
+        })
+
+    # ── Word frequency (§4) ─────────────────────────────────────────────────
+    all_text = " ".join(df["review_text"].dropna()).lower()
+    words = re.findall(r"\b[a-z]{3,}\b", all_text)
+    wc = Counter(w for w in words if w not in _STOP_WORDS)
+    word_cloud = [
+        (word, freq, "negative" if word in _NEG_WORDS else "positive")
+        for word, freq in wc.most_common(25)
+    ]
+
+    # ── Monthly trends (§5 additional) ──────────────────────────────────────
+    df["ym"] = df["reviewed_at"].dt.to_period("M")
+    monthly = (
+        df.groupby("ym")
+        .agg(pos=("sent_label", lambda x: x.eq("Positive").sum()),
+             neg=("sent_label", lambda x: x.eq("Negative").sum()),
+             count=("sentiment", "count"),
+             avg_r=("rating", "mean"))
+        .reset_index()
+    )
+    monthly = monthly[monthly["count"] >= 10].sort_values("ym").reset_index(drop=True)
+    # Pick 6 consecutive months with highest total volume
+    best_start, best_vol = 0, 0
+    for i in range(max(1, len(monthly) - 5)):
+        v = monthly.iloc[i:i + 6]["count"].sum()
+        if v > best_vol:
+            best_vol, best_start = v, i
+    best6 = monthly.iloc[best_start: best_start + 6]
+    trend_months   = [str(r["ym"])[-5:-3].lstrip("0") + " '" + str(r["ym"])[2:4] for _, r in best6.iterrows()]
+    # Use abbreviated month names
+    _MN = {"01":"Jan","02":"Feb","03":"Mar","04":"Apr","05":"May","06":"Jun",
+           "07":"Jul","08":"Aug","09":"Sep","10":"Oct","11":"Nov","12":"Dec"}
+    trend_months   = [_MN[str(r["ym"])[-2:]] for _, r in best6.iterrows()]
+    trend_scores   = [round(r["avg_r"] / 10 * 100) for _, r in best6.iterrows()]
+    trend_positive = [round(r["pos"] / r["count"] * 100) for _, r in best6.iterrows()]
+    trend_negative = [round(r["neg"] / r["count"] * 100) for _, r in best6.iterrows()]
+    trend_volume   = [int(r["count"]) for _, r in best6.iterrows()]
+
+    # Best/worst months for trend stat cards
+    best_idx  = best6["avg_r"].idxmax()
+    worst_idx = best6["avg_r"].idxmin()
+    best_month_label  = f"{_MN[str(monthly.loc[best_idx,'ym'])[-2:]]} {str(monthly.loc[best_idx,'ym'])[:4]}"
+    worst_month_label = f"{_MN[str(monthly.loc[worst_idx,'ym'])[-2:]]} {str(monthly.loc[worst_idx,'ym'])[:4]}"
+    best_score  = round(monthly.loc[best_idx,  "avg_r"] / 10 * 100)
+    worst_score = round(monthly.loc[worst_idx, "avg_r"] / 10 * 100)
+    vol_first, vol_last = best6.iloc[0]["count"], best6.iloc[-1]["count"]
+    vol_growth = f"{round((vol_last - vol_first) / vol_first * 100):+}%"
+
+    # MoM volume change (last two qualifying months in full dataset)
+    if len(monthly) >= 2:
+        mom = round((monthly.iloc[-1]["count"] - monthly.iloc[-2]["count"]) / monthly.iloc[-2]["count"] * 100, 1)
+        mom_change = f"{mom:+.0f}%"
+    else:
+        mom_change = "N/A"
+
+    # ── Sample reviews (§D) ─────────────────────────────────────────────────
+    reviews = []
+    for label in ["Negative", "Positive", "Neutral"]:
+        sub = df[df["sent_label"] == label].dropna(subset=["review_text", "reviewed_by"])
+        sub = sub[
+            sub["review_text"].str.len().between(60, 220) &
+            ~sub["review_text"].str.contains(r"[<>{}]", regex=True)
+        ]
+        for _, row in sub.sample(min(4, len(sub)), random_state=42).iterrows():
+            name   = str(row["reviewed_by"])
+            parts  = name.split()
+            inits  = (parts[0][0] + parts[1][0]).upper() if len(parts) >= 2 else name[:2].upper()
+            stars  = max(1, min(5, round(row["rating"] / 2)))
+            date   = row["reviewed_at"].strftime("%b %d") if pd.notna(row["reviewed_at"]) else "N/A"
+            text   = row["review_text"][:180].rstrip()
+            if len(row["review_text"]) > 180:
+                text += "…"
+            reviews.append({"initials": inits, "name": name[:18], "stars": stars,
+                            "date": date, "sentiment": label, "text": text})
+
+    # ── Assemble outputs ─────────────────────────────────────────────────────
+    complaints = sorted(
+        [{"name": _TOPIC_DISPLAY[r["key"]], "mentions": r["mentions"], "rating_impact": r["rating_impact"]}
+         for r in topic_rows if r["rating_impact"] < 0],
+        key=lambda x: x["mentions"], reverse=True
+    )
+    topics_list = sorted(topic_rows, key=lambda x: x["mentions"], reverse=True)
+
+    # Radar: one value per axis category, averaged positive_pct within that category
+    radar_cats = ["Cleanliness", "Service", "Comfort", "Breakfast", "Wi-Fi", "Location"]
+    _radar_map  = {"Cleanliness": ["cleanliness"], "Service": ["staff", "checkin"],
+                   "Comfort": ["room"], "Breakfast": ["breakfast"],
+                   "Wi-Fi": ["wifi"], "Location": ["location"]}
+    radar_vals = []
+    topic_pct  = {r["key"]: r["positive_pct"] for r in topic_rows}
+    for cat in radar_cats:
+        keys = _radar_map[cat]
+        vals = [topic_pct[k] / 100 for k in keys if k in topic_pct]
+        radar_vals.append(round(sum(vals) / len(vals), 2) if vals else 0.5)
+
+    return {
+        "stats": {
+            "total_reviews": total,
+            "avg_rating": float(avg_r5),
+            "negative_rate": neg_pct,
+            "neutral_rate": neu_pct,
+            "sentiment_score": sentiment_score,
+            "positive_pct": pos_pct,
+            "neutral_pct": neu_pct,
+            "negative_pct": neg_pct,
+            "mom_change": mom_change,
+        },
+        "complaints":    [(c["name"], c["mentions"]) for c in complaints],
+        "word_cloud":    word_cloud,
+        "reviews":       reviews,
+        "topics":        [{"name": _TOPIC_DISPLAY[r["key"]], "category": _TOPIC_CATEGORY[r["key"]],
+                           "positive_pct": r["positive_pct"], "mentions": r["mentions"]}
+                          for r in topics_list],
+        "trend_months":  trend_months,
+        "trend_scores":  trend_scores,
+        "trend_positive": trend_positive,
+        "trend_negative": trend_negative,
+        "trend_volume":  trend_volume,
+        "radar_categories": radar_cats,
+        "radar_values":  radar_vals,
+        "best_month_label":  best_month_label,
+        "worst_month_label": worst_month_label,
+        "best_score":    best_score,
+        "worst_score":   worst_score,
+        "vol_growth":    vol_growth,
+        "topic_rows":    topic_rows,
+    }
+
+
+# ── Compute data at startup ───────────────────────────────────────────────────
+_data = compute_data()
+STATS            = _data["stats"]
+COMPLAINTS       = _data["complaints"]
+WORD_CLOUD       = _data["word_cloud"]
+REVIEWS          = _data["reviews"]
+TOPICS           = _data["topics"]
+TREND_MONTHS     = _data["trend_months"]
+TREND_SCORES     = _data["trend_scores"]
+TREND_POSITIVE   = _data["trend_positive"]
+TREND_NEGATIVE   = _data["trend_negative"]
+TREND_VOLUME     = _data["trend_volume"]
+RADAR_CATEGORIES = _data["radar_categories"]
+RADAR_VALUES     = _data["radar_values"]
 
 # ── CSS ──────────────────────────────────────────────────────────────────────
 CSS = """
@@ -579,7 +720,7 @@ def build_overview():
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
     <div class="card-title">Overall Sentiment</div>
-    <span class="gauge-badge">+4.2% MoM</span>
+    <span class="gauge-badge">+50% MoM</span>
   </div>
   <div class="gauge-wrap">
     {gauge}
@@ -726,27 +867,27 @@ def build_trends(tab="Sentiment Score"):
 <div class="trend-stats">
   <div class="trend-stat-card">
     <div class="trend-stat-label">Best Month</div>
-    <div class="trend-stat-value ts-best">July 2026</div>
-    <div class="trend-stat-sub">score: 72</div>
+    <div class="trend-stat-value ts-best">{_data['best_month_label']}</div>
+    <div class="trend-stat-sub">score: {_data['best_score']}</div>
   </div>
   <div class="trend-stat-card">
     <div class="trend-stat-label">Worst Month</div>
-    <div class="trend-stat-value ts-worst">March 2026</div>
-    <div class="trend-stat-sub">score: 65</div>
+    <div class="trend-stat-value ts-worst">{_data['worst_month_label']}</div>
+    <div class="trend-stat-sub">score: {_data['worst_score']}</div>
   </div>
   <div class="trend-stat-card">
     <div class="trend-stat-label">Growth</div>
-    <div class="trend-stat-value ts-grow">+120%</div>
-    <div class="trend-stat-sub">Feb → Jul volume</div>
+    <div class="trend-stat-value ts-grow">{_data['vol_growth']}</div>
+    <div class="trend-stat-sub">{TREND_MONTHS[0]} → {TREND_MONTHS[-1]} volume</div>
   </div>
 </div>"""
 
     return f"""
 <div style="padding:0 28px 24px;">
-  <p style="font-size:12px;color:#9c8c7a;margin-bottom:14px;">Sentiment over time · Feb – Jul 2026</p>
+  <p style="font-size:12px;color:#9c8c7a;margin-bottom:14px;">Sentiment over time · Apr – Sep 2019</p>
   <div class="card">
     <div class="card-title">{title}</div>
-    <div class="card-sub">February – July 2026</div>
+    <div class="card-sub">April – September 2019</div>
     {chart}
   </div>
   {stat_cards}
@@ -755,21 +896,21 @@ def build_trends(tab="Sentiment Score"):
 
 def build_reports():
     reports = [
-        {"type": "PDF", "title": "Monthly Sentiment Report",
-         "desc": "Full breakdown of July 2026 sentiment scores, complaint categories, and guest feedback patterns.",
-         "date": "Jul 23, 2026", "size": "2.4 MB"},
+        {"type": "PDF", "title": "Sentiment Analysis Report",
+         "desc": "Full breakdown of 641 Booking.com reviews for Motel One Brussels — sentiment scores, complaint categories, and guest feedback patterns.",
+         "date": "Jul 2021", "size": "2.1 MB"},
         {"type": "PDF", "title": "Top Complaints Analysis",
-         "desc": "Deep-dive into the 8 most frequent complaint categories with root cause hypotheses and recommended actions.",
-         "date": "Jul 20, 2026", "size": "1.1 MB"},
+         "desc": "Deep-dive into the 4 topics with negative rating impact: Room quality, Check-in experience, Noise levels, and Wi-Fi quality.",
+         "date": "Jul 2021", "size": "980 KB"},
         {"type": "CSV", "title": "Sentiment Trend Data",
-         "desc": "Raw monthly sentiment and volume data from February through July 2026, suitable for further analysis.",
-         "date": "Jul 23, 2026", "size": "48 KB"},
+         "desc": "Raw monthly sentiment and volume data from Aug 2018 through Feb 2020, suitable for further analysis.",
+         "date": "Jul 2021", "size": "38 KB"},
         {"type": "CSV", "title": "Word Frequency Export",
-         "desc": "Complete word frequency table with sentiment labels and co-occurrence data from all 1,842 reviews.",
-         "date": "Jul 23, 2026", "size": "120 KB"},
-        {"type": "PDF", "title": "Q2 Executive Summary",
-         "desc": "One-page management summary of Q2 2026 review performance, key wins, and priority improvement areas.",
-         "date": "Jun 30, 2026", "size": "540 KB"},
+         "desc": "Complete word frequency table with sentiment labels from all 641 reviews.",
+         "date": "Jul 2021", "size": "95 KB"},
+        {"type": "PDF", "title": "Business Impact Score Summary",
+         "desc": "Priority ranking of all 8 topics by business impact score — combining rating impact, frequency, reach, and sentiment severity.",
+         "date": "Jul 2021", "size": "410 KB"},
     ]
     cards = []
     for rp in reports:
@@ -884,7 +1025,7 @@ def full_page_html(active_page, page_content):
     <div class="page-header">
       <div>
         <h1>{active_page}</h1>
-        <div class="sub">Grand Horizon Hotel · July 2026</div>
+        <div class="sub">Motel One Brussels · 2018 – 2021</div>
       </div>
       <span class="live-badge">Live data</span>
     </div>
@@ -895,15 +1036,21 @@ def full_page_html(active_page, page_content):
 
 
 # ── AI chat helpers ───────────────────────────────────────────────────────────
-SYSTEM_PROMPT = """You are a hotel review analytics assistant for Grand Horizon Hotel.
-You have access to the following dashboard data for July 2026:
-- Total reviews: 1,842 (+4.2% MoM)
-- Average rating: 3.9/5
-- Sentiment: 58% positive, 19% neutral, 23% negative
-- Sentiment score: 72/100
-- Top complaints: Noise levels (312), Slow check-in (278), Room cleanliness (241), Wi-Fi quality (198)
-- Top topics by positivity: Location 90%, Pool area 81%, Room view 78%, Bed comfort 72%
-- Worst topics: Parking access 10%, Noise levels 12%, Wi-Fi quality 15%
+_problems   = [t for t in _data["topic_rows"] if t["rating_impact"] < 0]
+_strengths  = [t for t in _data["topic_rows"] if t["rating_impact"] >= 0]
+_prob_str   = ", ".join(f"{_TOPIC_DISPLAY[t['key']]} ({t['mentions']} mentions, {t['rating_impact']:+.2f} stars)"
+                        for t in sorted(_problems, key=lambda x: x["mentions"], reverse=True))
+_str_str    = ", ".join(f"{_TOPIC_DISPLAY[t['key']]} ({t['positive_pct']}% positive)"
+                        for t in sorted(_strengths, key=lambda x: x["positive_pct"], reverse=True))
+
+SYSTEM_PROMPT = f"""You are a hotel review analytics assistant for Motel One Brussels.
+You have access to the following dashboard data from {STATS['total_reviews']} Booking.com reviews:
+- Average rating: {STATS['avg_rating']}/5 (on a 10-point scale: {round(STATS['avg_rating'] * 2, 1)}/10)
+- Sentiment: {STATS['positive_pct']}% positive, {STATS['neutral_pct']}% neutral, {STATS['negative_pct']}% negative
+- Sentiment score: {STATS['sentiment_score']}/100
+- Topics with negative rating impact (problems to fix): {_prob_str}
+- Top strengths: {_str_str}
+- Best month: {_data['best_month_label']} (score {_data['best_score']}), Worst month: {_data['worst_month_label']} (score {_data['worst_score']})
 Answer concisely and helpfully about review trends, complaints, and guest feedback patterns."""
 
 
@@ -1056,7 +1203,7 @@ with gr.Blocks(css=CSS + NAV_CSS, title="Hotel Review Dashboard", js=CHAT_JS) as
                 for icon, label in zip(NAV_ICONS, PAGES):
                     btn = gr.Button(f"{icon}  {label}", elem_classes=["nav-btn-active" if label == "Overview" else "nav-btn"])
                     nav_buttons.append(btn)
-            gr.Markdown("Grand Horizon Hotel\nJul 2026 · 1,842 reviews", elem_id="nav-footer")
+            gr.Markdown("Motel One Brussels\n2018–2021 · 641 reviews", elem_id="nav-footer")
 
         # ── Content ────────────────────────────────────────────────
         with gr.Column(scale=1, elem_id="content-col"):
