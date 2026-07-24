@@ -1,0 +1,56 @@
+{
+  "analysis_period": {
+    "start": "2018-08-03",
+    "end": "2020-02-16"
+  },
+  "methodology": "LDA topics with proportions (% of reviews), pre-COVID period",
+  "first_half_reviews": 289,
+  "second_half_reviews": 327,
+  "risks": [
+    {
+      "topic": "facilities_space",
+      "risk_level": "MEDIUM",
+      "outlook": "STABLE",
+      "first_half_pct": 44.29065743944637,
+      "second_half_pct": 42.201834862385326,
+      "pct_point_change": -2.0888225770610447,
+      "rating_change": -0.1459352355072454
+    },
+    {
+      "topic": "value_dining",
+      "risk_level": "MEDIUM",
+      "outlook": "IMPROVING",
+      "first_half_pct": 42.90657439446367,
+      "second_half_pct": 37.00305810397553,
+      "pct_point_change": -5.903516290488135,
+      "rating_change": -0.10028659024259845
+    },
+    {
+      "topic": "location_transport",
+      "risk_level": "LOW",
+      "outlook": "IMPROVING",
+      "first_half_pct": 53.28719723183391,
+      "second_half_pct": 50.15290519877675,
+      "pct_point_change": -3.1342920330571573,
+      "rating_change": -0.0018530250237560608
+    },
+    {
+      "topic": "service_hospitality",
+      "risk_level": "LOW",
+      "outlook": "IMPROVING",
+      "first_half_pct": 36.67820069204152,
+      "second_half_pct": 31.19266055045872,
+      "pct_point_change": -5.485540141582803,
+      "rating_change": 0.16096929337772892
+    },
+    {
+      "topic": "room_bathroom",
+      "risk_level": "LOW",
+      "outlook": "STABLE",
+      "first_half_pct": 49.48096885813148,
+      "second_half_pct": 50.45871559633027,
+      "pct_point_change": 0.977746738198789,
+      "rating_change": -0.09920745920745766
+    }
+  ]
+}
