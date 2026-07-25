@@ -13,7 +13,7 @@
     }
   },
   "top_priority": "service_hospitality",
-  "top_priority_score": NaN,
+  "top_priority_score": 16.059974434219644,
   "topic_analysis": [
     {
       "topic": "service_hospitality",
@@ -26,54 +26,11 @@
       "reach_pct": 35.413416536661465,
       "freq_score": 45.4,
       "sentiment_score": NaN,
-      "impact_score": 15.953734184609658,
+      "impact_score": 31.907468369219316,
       "reach_score": 70.82683307332293,
-      "business_impact_score": NaN
-    },
-    {
-      "topic": "room_bathroom",
-      "mentions": 300,
-      "avg_aspect_sentiment": NaN,
-      "avg_overall_sentiment": 0.598801,
-      "avg_rating": 8.836333333333332,
-      "rating_impact": -0.125913156526261,
-      "sentiment_severity": NaN,
-      "reach_pct": 46.80187207488299,
-      "freq_score": 60.0,
-      "sentiment_score": NaN,
-      "impact_score": 6.29565782631305,
-      "reach_score": 93.60374414976599,
-      "business_impact_score": NaN
-    },
-    {
-      "topic": "location_transport",
-      "mentions": 326,
-      "avg_aspect_sentiment": NaN,
-      "avg_overall_sentiment": 0.6544705521472393,
-      "avg_rating": 9.0079754601227,
-      "rating_impact": 0.04572897026310585,
-      "sentiment_severity": NaN,
-      "reach_pct": 50.858034321372855,
-      "freq_score": 65.2,
-      "sentiment_score": NaN,
-      "impact_score": 2.2864485131552925,
-      "reach_score": 100.0,
-      "business_impact_score": NaN
-    },
-    {
-      "topic": "value_dining",
-      "mentions": 264,
-      "avg_aspect_sentiment": NaN,
-      "avg_overall_sentiment": 0.690682196969697,
-      "avg_rating": 9.04659090909091,
-      "rating_impact": 0.08434441923131608,
-      "sentiment_severity": NaN,
-      "reach_pct": 41.18564742589704,
-      "freq_score": 52.800000000000004,
-      "sentiment_score": NaN,
-      "impact_score": 4.217220961565804,
-      "reach_score": 82.37129485179408,
-      "business_impact_score": NaN
+      "problem_score": 16.059974434219644,
+      "strength_score": 0.10624024960998439,
+      "business_impact_score": 16.059974434219644
     },
     {
       "topic": "facilities_space",
@@ -86,9 +43,62 @@
       "reach_pct": 45.55382215288611,
       "freq_score": 58.4,
       "sentiment_score": NaN,
-      "impact_score": 10.552059068664121,
+      "impact_score": 21.104118137328243,
       "reach_score": 91.10764430577223,
-      "business_impact_score": NaN
+      "problem_score": 0.13666146645865834,
+      "strength_score": 10.68872053512278,
+      "business_impact_score": 10.68872053512278
+    },
+    {
+      "topic": "room_bathroom",
+      "mentions": 300,
+      "avg_aspect_sentiment": NaN,
+      "avg_overall_sentiment": 0.598801,
+      "avg_rating": 8.836333333333332,
+      "rating_impact": -0.125913156526261,
+      "sentiment_severity": NaN,
+      "reach_pct": 46.80187207488299,
+      "freq_score": 60.0,
+      "sentiment_score": NaN,
+      "impact_score": 12.5913156526261,
+      "reach_score": 93.60374414976599,
+      "problem_score": 6.4360634425377,
+      "strength_score": 0.14040561622464898,
+      "business_impact_score": 6.4360634425377
+    },
+    {
+      "topic": "value_dining",
+      "mentions": 264,
+      "avg_aspect_sentiment": NaN,
+      "avg_overall_sentiment": 0.690682196969697,
+      "avg_rating": 9.04659090909091,
+      "rating_impact": 0.08434441923131608,
+      "sentiment_severity": NaN,
+      "reach_pct": 41.18564742589704,
+      "freq_score": 52.800000000000004,
+      "sentiment_score": NaN,
+      "impact_score": 8.434441923131608,
+      "reach_score": 82.37129485179408,
+      "problem_score": 0.12355694227769111,
+      "strength_score": 4.340777903843495,
+      "business_impact_score": 4.340777903843495
+    },
+    {
+      "topic": "location_transport",
+      "mentions": 326,
+      "avg_aspect_sentiment": NaN,
+      "avg_overall_sentiment": 0.6544705521472393,
+      "avg_rating": 9.0079754601227,
+      "rating_impact": 0.04572897026310585,
+      "sentiment_severity": NaN,
+      "reach_pct": 50.858034321372855,
+      "freq_score": 65.2,
+      "sentiment_score": NaN,
+      "impact_score": 4.572897026310585,
+      "reach_score": 100.0,
+      "problem_score": 0.15257410296411858,
+      "strength_score": 2.439022616119411,
+      "business_impact_score": 2.439022616119411
     }
   ]
 }
