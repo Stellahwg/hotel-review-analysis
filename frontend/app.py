@@ -4,44 +4,34 @@ import os
 import re
 from collections import Counter
 
-# ── Palette (from dataviz skill reference) ──────────────────────────────────
-C_POSITIVE   = "#1baf7a"   # aqua / good
-C_NEGATIVE   = "#eb6834"   # orange / bad
-C_NEUTRAL    = "#eda100"   # yellow / neutral
-C_BAR_DARK   = "#8c5e4a"   # warm brown for complaint bars (matches screenshot)
-C_BAR_LIGHT  = "#c9a48e"
-C_SURFACE    = "#f5f2ee"   # warm off-white page
-C_CARD       = "#ffffff"
-C_TEXT_PRI   = "#1a1208"
-C_TEXT_SEC   = "#6b5c4a"
-C_TEXT_MUT   = "#9c8c7a"
-C_GRIDLINE   = "#e8e2da"
-C_BORDER     = "rgba(90,70,50,0.12)"
 
+# ── Analysis pipeline (mirrors notebooks/project_new2.ipynb) ─────────────────
 
-# ── Analysis pipeline (mirrors notebooks/project.ipynb) ──────────────────────
+# LDA topic constants (auto-labelled via LABEL_SEEDS in notebook Cell 20)
+_LDA_TOPIC_DISPLAY = {
+    "room_bathroom":       "Room & Bathroom",
+    "facilities_space":    "Facilities & Space",
+    "location_transport":  "Location & Transport",
+    "service_hospitality": "Service & Hospitality",
+    "value_dining":        "Value & Dining",
+}
+_LDA_TOPIC_CATEGORY = {
+    "room_bathroom":       "Rooms",
+    "facilities_space":    "Facilities",
+    "location_transport":  "General",
+    "service_hospitality": "Service",
+    "value_dining":        "F&B",
+}
 
-_TOPIC_KEYWORDS = {
-    "wifi":        ["wifi", "wi-fi", "internet", "connection"],
-    "cleanliness": ["clean", "dirty", "filthy", "spotless", "hygiene", "tidy"],
-    "breakfast":   ["breakfast", "buffet", "brunch"],
-    "checkin":     ["check in", "check-in", "reception", "front desk", "arrival"],
-    "noise":       ["noise", "noisy", "loud", "quiet", "sound"],
-    "location":    ["location", "area", "walk", "distance", "metro", "station"],
-    "room":        ["room", "bed", "bedroom", "shower", "bathroom", "toilet"],
-    "staff":       ["staff", "service", "employee", "helpful", "friendly", "rude"],
+# Seed keywords used to auto-label LDA topics (mirrors notebook LABEL_SEEDS)
+_LABEL_SEEDS = {
+    "room_bathroom":       ["room", "bed", "bathroom", "shower", "toilet", "sleep", "pillow"],
+    "facilities_space":    ["facility", "facilities", "space", "wifi", "parking", "pool", "gym", "small"],
+    "location_transport":  ["location", "transport", "station", "walk", "city", "central", "metro", "area"],
+    "service_hospitality": ["staff", "service", "reception", "friendly", "helpful", "check", "rude"],
+    "value_dining":        ["breakfast", "food", "dining", "price", "value", "money", "expensive", "bar"],
 }
-_TOPIC_DISPLAY = {
-    "wifi": "Wi-Fi quality", "cleanliness": "Room cleanliness",
-    "breakfast": "Breakfast options", "checkin": "Check-in experience",
-    "noise": "Noise levels", "location": "Location",
-    "room": "Room quality", "staff": "Staff attitude",
-}
-_TOPIC_CATEGORY = {
-    "wifi": "Facilities", "cleanliness": "Housekeeping", "breakfast": "F&B",
-    "checkin": "Service", "noise": "Facilities", "location": "General",
-    "room": "Rooms", "staff": "Service",
-}
+
 _STOP_WORDS = {
     "the", "and", "was", "for", "but", "were", "with", "not", "from", "there",
     "you", "have", "are", "like", "also", "bit", "very", "this", "that", "had",
@@ -59,15 +49,20 @@ _NEG_WORDS = {
 def compute_data():
     import pandas as pd
     from textblob import TextBlob
+    from sklearn.feature_extraction.text import CountVectorizer
+    from sklearn.decomposition import LatentDirichletAllocation
 
-    csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "raw", "reviews_clean.csv")
+    base = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
+
+    # ── Step 1: Load Motel One Brussels reviews ──────────────────────────────
+    csv_path = os.path.join(base, "reviews_clean.csv")
     df = pd.read_csv(csv_path)
     df["reviewed_at"] = pd.to_datetime(df["reviewed_at"], errors="coerce")
     df["review_text"] = df["review_text"].fillna("").str.strip().str.replace(r"\s+", " ", regex=True)
 
-    # ── Sentiment (§3) ──────────────────────────────────────────────────────
-    df["sentiment"] = df["review_text"].apply(lambda t: TextBlob(str(t)).sentiment.polarity)
-    # Classify by rating, consistent with notebook §5 bad/good split
+    # ── Step 2: Overall sentiment + label (§3) ───────────────────────────────
+    df["overall_sentiment"] = df["review_text"].apply(lambda t: TextBlob(str(t)).sentiment.polarity)
+
     def _label(row):
         if row["rating"] >= 9:   return "Positive"
         elif row["rating"] <= 6: return "Negative"
@@ -81,25 +76,94 @@ def compute_data():
     avg_r5  = round(df["rating"].mean() / 2, 1)
     sentiment_score = round(df["rating"].mean() / 10 * 100)
 
-    # ── Topic detection (§4) ────────────────────────────────────────────────
-    def _detect(text):
-        t = str(text).lower()
-        return [k for k, kws in _TOPIC_KEYWORDS.items() if any(kw in t for kw in kws)]
-    df["topics"] = df["review_text"].apply(_detect)
+    # ── Step 3: LDA topic detection (§4A) ────────────────────────────────────
+    # Train on full dataset for richer vocabulary
+    full_path = os.path.join(base, "booking_reviews.csv")
+    if os.path.exists(full_path):
+        df_full = pd.read_csv(full_path)
+        df_full = df_full[df_full["review_text"].notna()].drop_duplicates(
+            subset=["review_text", "hotel_name"])
+        train_texts = df_full["review_text"].astype(str).tolist()
+    else:
+        train_texts = df["review_text"].astype(str).tolist()
 
-    # ── Per-topic aggregation + business impact score (§5) ──────────────────
+    vectorizer = CountVectorizer(
+        max_features=500, min_df=50, max_df=0.4,
+        stop_words="english", ngram_range=(1, 2)
+    )
+    X_lda = vectorizer.fit_transform(train_texts)
+    lda_model = LatentDirichletAllocation(
+        n_components=5, random_state=42, max_iter=30, learning_method="online"
+    )
+    lda_model.fit(X_lda)
+
+    # Auto-label topics by matching top words against seed keywords
+    feature_names = vectorizer.get_feature_names_out()
+    topic_top_words = {}
+    for i, comp in enumerate(lda_model.components_):
+        top_idx = comp.argsort()[:-16:-1]
+        topic_top_words[i] = [feature_names[j] for j in top_idx]
+
+    assigned_names = {}
+    used = set()
+    for idx, words in topic_top_words.items():
+        best_name, best_score = None, -1
+        for name, seeds in _LABEL_SEEDS.items():
+            if name in used:
+                continue
+            score = sum(1 for w in words if any(s in w for s in seeds))
+            if score > best_score:
+                best_score, best_name = score, name
+        assigned_names[idx] = best_name or f"topic_{idx}"
+        used.add(assigned_names[idx])
+
+    topic_keywords = {assigned_names[i]: topic_top_words[i][:15] for i in range(5)}
+
+    # Transform Motel One reviews
+    X_hotel = vectorizer.transform(df["review_text"].astype(str).tolist())
+    doc_topic_dist = lda_model.transform(X_hotel)
+    df["lda_topics"] = [
+        [assigned_names[j] for j in range(5) if doc_topic_dist[i, j] > 0.15]
+        for i in range(len(df))
+    ]
+
+    # ── Step 4: ABSA — per-topic aspect sentiment (§4A Cell 21) ─────────────
+    def _aspect_sentiments(text, assigned_topics):
+        results = {}
+        for topic in assigned_topics:
+            kws = topic_keywords.get(topic, [])
+            clauses = re.split(r"[.,]", str(text))
+            relevant = [c for c in clauses if any(k in c.lower() for k in kws)]
+            if relevant:
+                scores = [TextBlob(c).sentiment.polarity for c in relevant]
+                results[topic] = sum(scores) / len(scores)
+            else:
+                results[topic] = TextBlob(str(text)).sentiment.polarity
+        return results
+
+    df["aspect_sentiments"] = df.apply(
+        lambda r: _aspect_sentiments(r["review_text"], r["lda_topics"]), axis=1
+    )
+
+    # ── Step 5: Per-topic aggregation + business impact score (§5) ──────────
     overall_avg = df["rating"].mean()
+    overall_avg_aspect = df["overall_sentiment"].mean()
     topic_rows = []
-    for key in _TOPIC_KEYWORDS:
-        sub = df[df["topics"].apply(lambda x: key in x)]
+    for name in _LDA_TOPIC_DISPLAY:
+        sub = df[df["lda_topics"].apply(lambda x: name in x)]
         if len(sub) == 0:
             continue
         mentions     = len(sub)
         avg_r        = sub["rating"].mean()
         r_impact     = avg_r - overall_avg
         pos_t        = round(sub["sent_label"].eq("Positive").sum() / mentions * 100)
-        avg_sent     = sub["sentiment"].mean()
-        sent_sev     = avg_sent - df["sentiment"].mean()
+        # ABSA: extract per-topic aspect sentiment for reviews that have it
+        aspect_scores = [
+            row["aspect_sentiments"].get(name, row["overall_sentiment"])
+            for _, row in sub.iterrows()
+        ]
+        avg_aspect   = sum(aspect_scores) / len(aspect_scores) if aspect_scores else 0
+        sent_sev     = avg_aspect - overall_avg_aspect
         reach_pct    = mentions / total * 100
         freq_score   = min((mentions / 500) * 100, 100)
         sent_score   = abs(sent_sev) * 100
@@ -107,12 +171,13 @@ def compute_data():
         reach_score  = min((reach_pct / 50) * 100, 100)
         biz_score    = impact_score * 0.40 + freq_score * 0.30 + reach_score * 0.20 + sent_score * 0.10
         topic_rows.append({
-            "key": key, "mentions": mentions, "avg_rating": avg_r,
-            "rating_impact": r_impact, "positive_pct": pos_t,
-            "biz_score": biz_score,
+            "key": name, "mentions": mentions, "avg_rating": float(avg_r),
+            "rating_impact": float(r_impact), "positive_pct": pos_t,
+            "avg_aspect_sentiment": float(avg_aspect),
+            "biz_score": float(biz_score),
         })
 
-    # ── Word frequency (§4) ─────────────────────────────────────────────────
+    # ── Step 6: Word frequency (§4) ──────────────────────────────────────────
     all_text = " ".join(df["review_text"].dropna()).lower()
     words = re.findall(r"\b[a-z]{3,}\b", all_text)
     wc = Counter(w for w in words if w not in _STOP_WORDS)
@@ -121,52 +186,94 @@ def compute_data():
         for word, freq in wc.most_common(25)
     ]
 
-    # ── Monthly trends (§5 additional) ──────────────────────────────────────
+    # ── Step 7: Monthly trends ───────────────────────────────────────────────
+    _MN = {"01":"Jan","02":"Feb","03":"Mar","04":"Apr","05":"May","06":"Jun",
+           "07":"Jul","08":"Aug","09":"Sep","10":"Oct","11":"Nov","12":"Dec"}
     df["ym"] = df["reviewed_at"].dt.to_period("M")
     monthly = (
         df.groupby("ym")
         .agg(pos=("sent_label", lambda x: x.eq("Positive").sum()),
              neg=("sent_label", lambda x: x.eq("Negative").sum()),
-             count=("sentiment", "count"),
+             count=("overall_sentiment", "count"),
              avg_r=("rating", "mean"))
         .reset_index()
     )
     monthly = monthly[monthly["count"] >= 10].sort_values("ym").reset_index(drop=True)
-    # Pick 6 consecutive months with highest total volume
     best_start, best_vol = 0, 0
     for i in range(max(1, len(monthly) - 5)):
         v = monthly.iloc[i:i + 6]["count"].sum()
         if v > best_vol:
             best_vol, best_start = v, i
     best6 = monthly.iloc[best_start: best_start + 6]
-    trend_months   = [str(r["ym"])[-5:-3].lstrip("0") + " '" + str(r["ym"])[2:4] for _, r in best6.iterrows()]
-    # Use abbreviated month names
-    _MN = {"01":"Jan","02":"Feb","03":"Mar","04":"Apr","05":"May","06":"Jun",
-           "07":"Jul","08":"Aug","09":"Sep","10":"Oct","11":"Nov","12":"Dec"}
     trend_months   = [_MN[str(r["ym"])[-2:]] for _, r in best6.iterrows()]
     trend_scores   = [round(r["avg_r"] / 10 * 100) for _, r in best6.iterrows()]
     trend_positive = [round(r["pos"] / r["count"] * 100) for _, r in best6.iterrows()]
     trend_negative = [round(r["neg"] / r["count"] * 100) for _, r in best6.iterrows()]
     trend_volume   = [int(r["count"]) for _, r in best6.iterrows()]
+    # Year range for display (e.g. "2019" or "2018–2019")
+    years = sorted({str(r["ym"])[:4] for _, r in best6.iterrows()})
+    trend_year_range = years[0] if len(years) == 1 else f"{years[0]}–{years[-1]}"
 
-    # Best/worst months for trend stat cards
     best_idx  = best6["avg_r"].idxmax()
     worst_idx = best6["avg_r"].idxmin()
     best_month_label  = f"{_MN[str(monthly.loc[best_idx,'ym'])[-2:]]} {str(monthly.loc[best_idx,'ym'])[:4]}"
     worst_month_label = f"{_MN[str(monthly.loc[worst_idx,'ym'])[-2:]]} {str(monthly.loc[worst_idx,'ym'])[:4]}"
     best_score  = round(monthly.loc[best_idx,  "avg_r"] / 10 * 100)
     worst_score = round(monthly.loc[worst_idx, "avg_r"] / 10 * 100)
-    vol_first, vol_last = best6.iloc[0]["count"], best6.iloc[-1]["count"]
-    vol_growth = f"{round((vol_last - vol_first) / vol_first * 100):+}%"
-
-    # MoM volume change (last two qualifying months in full dataset)
+    vol_growth = f"{round((best6.iloc[-1]['count'] - best6.iloc[0]['count']) / best6.iloc[0]['count'] * 100):+}%"
     if len(monthly) >= 2:
-        mom = round((monthly.iloc[-1]["count"] - monthly.iloc[-2]["count"]) / monthly.iloc[-2]["count"] * 100, 1)
-        mom_change = f"{mom:+.0f}%"
+        mom_val = round((monthly.iloc[-1]["count"] - monthly.iloc[-2]["count"]) / monthly.iloc[-2]["count"] * 100, 1)
+        mom_change = f"{mom_val:+.0f}%"
     else:
         mom_change = "N/A"
 
-    # ── Sample reviews (§D) ─────────────────────────────────────────────────
+    # Aspect sentiment trend per topic over the best-6 months
+    trend_aspect = {}
+    best6_periods = [r["ym"] for _, r in best6.iterrows()]
+    for name in _LDA_TOPIC_DISPLAY:
+        monthly_aspect = []
+        for period in best6_periods:
+            sub = df[(df["ym"] == period) & df["lda_topics"].apply(lambda x: name in x)]
+            if len(sub) > 0:
+                scores = [row["aspect_sentiments"].get(name, row["overall_sentiment"])
+                          for _, row in sub.iterrows()]
+                monthly_aspect.append(round(sum(scores) / len(scores), 3))
+            else:
+                monthly_aspect.append(None)
+        trend_aspect[name] = monthly_aspect
+
+    # ── Step 8: Pre-COVID risk analysis (§6 Cells 58-62) ────────────────────
+    df_risk = df[df["reviewed_at"] < "2020-03-01"].copy()
+    risk_rows = []
+    if len(df_risk) > 10:
+        mid_date = df_risk["reviewed_at"].dropna().sort_values().iloc[len(df_risk) // 2]
+        first_half = df_risk[df_risk["reviewed_at"] <= mid_date]
+        second_half = df_risk[df_risk["reviewed_at"] > mid_date]
+        for name in _LDA_TOPIC_DISPLAY:
+            def _pct(subset):
+                n = len(subset)
+                if n == 0: return 0.0
+                return subset["lda_topics"].apply(lambda x: name in x).sum() / n * 100
+            p1, p2 = _pct(first_half), _pct(second_half)
+            r1 = first_half[first_half["lda_topics"].apply(lambda x: name in x)]["rating"].mean()
+            r2 = second_half[second_half["lda_topics"].apply(lambda x: name in x)]["rating"].mean()
+            pp_change = p2 - p1
+            r_change  = (r2 - r1) if (r1 == r1 and r2 == r2) else 0.0
+            if pp_change > 5 and r_change < -0.2:
+                risk = "HIGH"
+            elif pp_change > 5 or r_change < -0.2:
+                risk = "MEDIUM"
+            else:
+                risk = "LOW"
+            risk_rows.append({
+                "key": name,
+                "display": _LDA_TOPIC_DISPLAY[name],
+                "pct_point_change": round(float(pp_change), 1),
+                "rating_change": round(float(r_change), 2),
+                "risk_level": risk,
+            })
+
+    # ── Step 9: Sample reviews ───────────────────────────────────────────────
     reviews = []
     for label in ["Negative", "Positive", "Neutral"]:
         sub = df[df["sent_label"] == label].dropna(subset=["review_text", "reviewed_by"])
@@ -175,34 +282,47 @@ def compute_data():
             ~sub["review_text"].str.contains(r"[<>{}]", regex=True)
         ]
         for _, row in sub.sample(min(4, len(sub)), random_state=42).iterrows():
-            name   = str(row["reviewed_by"])
-            parts  = name.split()
-            inits  = (parts[0][0] + parts[1][0]).upper() if len(parts) >= 2 else name[:2].upper()
-            stars  = max(1, min(5, round(row["rating"] / 2)))
-            date   = row["reviewed_at"].strftime("%b %d") if pd.notna(row["reviewed_at"]) else "N/A"
-            text   = row["review_text"][:180].rstrip()
+            name_   = str(row["reviewed_by"])
+            parts   = name_.split()
+            inits   = (parts[0][0] + parts[1][0]).upper() if len(parts) >= 2 else name_[:2].upper()
+            stars   = max(1, min(5, round(row["rating"] / 2)))
+            date    = row["reviewed_at"].strftime("%b %d") if pd.notna(row["reviewed_at"]) else "N/A"
+            text    = row["review_text"][:180].rstrip()
             if len(row["review_text"]) > 180:
                 text += "…"
-            reviews.append({"initials": inits, "name": name[:18], "stars": stars,
+            reviews.append({"initials": inits, "name": name_[:18], "stars": stars,
                             "date": date, "sentiment": label, "text": text})
 
     # ── Assemble outputs ─────────────────────────────────────────────────────
+    # Actual data date range
+    dates = df["reviewed_at"].dropna().sort_values()
+    _MN2 = {"01":"Jan","02":"Feb","03":"Mar","04":"Apr","05":"May","06":"Jun",
+            "07":"Jul","08":"Aug","09":"Sep","10":"Oct","11":"Nov","12":"Dec"}
+    def _fmt_date(ts):
+        return f"{_MN2[ts.strftime('%m')]} {ts.strftime('%Y')}"
+    data_date_range = f"{_fmt_date(dates.iloc[0])} – {_fmt_date(dates.iloc[-1])}"
+
     complaints = sorted(
-        [{"name": _TOPIC_DISPLAY[r["key"]], "mentions": r["mentions"], "rating_impact": r["rating_impact"]}
+        [{"name": _LDA_TOPIC_DISPLAY[r["key"]], "mentions": r["mentions"],
+          "rating_impact": r["rating_impact"]}
          for r in topic_rows if r["rating_impact"] < 0],
         key=lambda x: x["mentions"], reverse=True
     )
     topics_list = sorted(topic_rows, key=lambda x: x["mentions"], reverse=True)
 
-    # Radar: one value per axis category, averaged positive_pct within that category
-    radar_cats = ["Cleanliness", "Service", "Comfort", "Breakfast", "Wi-Fi", "Location"]
-    _radar_map  = {"Cleanliness": ["cleanliness"], "Service": ["staff", "checkin"],
-                   "Comfort": ["room"], "Breakfast": ["breakfast"],
-                   "Wi-Fi": ["wifi"], "Location": ["location"]}
+    # Radar: map LDA topics to radar axes
+    radar_cats = ["Room", "Facilities", "Location", "Service", "Value & Dining"]
+    radar_map  = {
+        "Room":         ["room_bathroom"],
+        "Facilities":   ["facilities_space"],
+        "Location":     ["location_transport"],
+        "Service":      ["service_hospitality"],
+        "Value & Dining": ["value_dining"],
+    }
+    topic_pct = {r["key"]: r["positive_pct"] for r in topic_rows}
     radar_vals = []
-    topic_pct  = {r["key"]: r["positive_pct"] for r in topic_rows}
     for cat in radar_cats:
-        keys = _radar_map[cat]
+        keys = radar_map[cat]
         vals = [topic_pct[k] / 100 for k in keys if k in topic_pct]
         radar_vals.append(round(sum(vals) / len(vals), 2) if vals else 0.5)
 
@@ -218,26 +338,34 @@ def compute_data():
             "negative_pct": neg_pct,
             "mom_change": mom_change,
         },
-        "complaints":    [(c["name"], c["mentions"]) for c in complaints],
-        "word_cloud":    word_cloud,
-        "reviews":       reviews,
-        "topics":        [{"name": _TOPIC_DISPLAY[r["key"]], "category": _TOPIC_CATEGORY[r["key"]],
-                           "positive_pct": r["positive_pct"], "mentions": r["mentions"]}
-                          for r in topics_list],
-        "trend_months":  trend_months,
-        "trend_scores":  trend_scores,
-        "trend_positive": trend_positive,
-        "trend_negative": trend_negative,
-        "trend_volume":  trend_volume,
+        "complaints":      [(c["name"], c["mentions"]) for c in complaints],
+        "word_cloud":      word_cloud,
+        "reviews":         reviews,
+        "topics":          [{"name": _LDA_TOPIC_DISPLAY[r["key"]],
+                             "category": _LDA_TOPIC_CATEGORY[r["key"]],
+                             "positive_pct": r["positive_pct"],
+                             "mentions": r["mentions"],
+                             "keywords": topic_keywords.get(r["key"], [])[:5]}
+                            for r in topics_list],
+        "data_date_range": data_date_range,
+        "trend_year_range": trend_year_range,
+        "trend_months":    trend_months,
+        "trend_scores":    trend_scores,
+        "trend_positive":  trend_positive,
+        "trend_negative":  trend_negative,
+        "trend_volume":    trend_volume,
+        "trend_aspect":    trend_aspect,
         "radar_categories": radar_cats,
-        "radar_values":  radar_vals,
+        "radar_values":    radar_vals,
         "best_month_label":  best_month_label,
         "worst_month_label": worst_month_label,
-        "best_score":    best_score,
-        "worst_score":   worst_score,
-        "vol_growth":    vol_growth,
-        "topic_rows":    topic_rows,
+        "best_score":      best_score,
+        "worst_score":     worst_score,
+        "vol_growth":      vol_growth,
+        "topic_rows":      topic_rows,
+        "risk_rows":       risk_rows,
     }
+
 
 
 # ── Compute data at startup ───────────────────────────────────────────────────
@@ -247,13 +375,17 @@ COMPLAINTS       = _data["complaints"]
 WORD_CLOUD       = _data["word_cloud"]
 REVIEWS          = _data["reviews"]
 TOPICS           = _data["topics"]
+DATA_DATE_RANGE  = _data["data_date_range"]
+TREND_YEAR_RANGE = _data["trend_year_range"]
 TREND_MONTHS     = _data["trend_months"]
 TREND_SCORES     = _data["trend_scores"]
 TREND_POSITIVE   = _data["trend_positive"]
 TREND_NEGATIVE   = _data["trend_negative"]
 TREND_VOLUME     = _data["trend_volume"]
+TREND_ASPECT     = _data["trend_aspect"]
 RADAR_CATEGORIES = _data["radar_categories"]
 RADAR_VALUES     = _data["radar_values"]
+RISK_ROWS        = _data["risk_rows"]
 
 # ── CSS ──────────────────────────────────────────────────────────────────────
 CSS = """
@@ -516,8 +648,6 @@ def bar_chart_html(items, max_val=None):
     rows = []
     for name, val in items:
         pct = val / max_val * 100
-        shade = f"#{hex(int(0x8c + (0xc9 - 0x8c) * (1 - val / max_val)))[2:].zfill(2)}"
-        # gradient dark→light based on rank
         ratio = 1 - val / max_val
         r = int(0x8c + (0xc9 - 0x8c) * ratio)
         g = int(0x5e + (0xa4 - 0x5e) * ratio)
@@ -569,7 +699,6 @@ def gauge_svg(score):
 
 
 def word_cloud_html(words):
-    sizes = [52, 48, 44, 38, 36, 34, 32, 30, 28, 26, 25, 24, 23, 22, 20, 19, 18, 15, 14, 13]
     spans = []
     for i, (word, freq, sentiment) in enumerate(words):
         size = max(11, min(34, 11 + (freq - 13) * 0.52))
@@ -612,6 +741,11 @@ def topic_card_html(t):
         badge_cls, bar_color = "pct-mid", "#eda100"
     else:
         badge_cls, bar_color = "pct-high", "#1baf7a"
+    keywords = t.get("keywords", [])
+    pills = "".join(
+        f'<span style="display:inline-block;background:#f0ede8;border-radius:10px;padding:2px 8px;font-size:10px;color:#6b5c4a;margin:2px 2px 0 0;">{k}</span>'
+        for k in keywords
+    )
     return f"""
 <div class="topic-card">
   <div class="topic-header">
@@ -625,6 +759,7 @@ def topic_card_html(t):
     <div class="topic-bar-fill" style="width:{min(pct,100)}%;background:{bar_color};"></div>
   </div>
   <div class="topic-mentions">{t["mentions"]} mentions</div>
+  {f'<div style="margin-top:6px;">{pills}</div>' if pills else ''}
 </div>"""
 
 
@@ -635,7 +770,7 @@ def line_chart_svg(months, values, color="#eda100", label="Score", w=540, h=220)
     mn, mx = min(values) - 5, max(values) + 5
 
     def px(i):
-        return pad_l + i / (len(months) - 1) * plot_w
+        return pad_l + i / max(len(months) - 1, 1) * plot_w
 
     def py(v):
         return pad_t + (1 - (v - mn) / (mx - mn)) * plot_h
@@ -665,6 +800,60 @@ def line_chart_svg(months, values, color="#eda100", label="Score", w=540, h=220)
     return f"""<svg width="100%" viewBox="0 0 {w} {h}" style="overflow:visible">
   {grids}{xlabels}{line}{dots}
 </svg>"""
+
+
+def multi_line_chart_svg(months, series, w=540, h=220):
+    """series: list of (label, color, [values_or_None])"""
+    pad_l, pad_r, pad_t, pad_b = 44, 20, 20, 30
+    plot_w = w - pad_l - pad_r
+    plot_h = h - pad_t - pad_b
+    all_vals = [v for _, _, vals in series for v in vals if v is not None]
+    if not all_vals:
+        return f'<svg width="100%" viewBox="0 0 {w} {h}"><text x="{w//2}" y="{h//2}" text-anchor="middle" font-size="11" fill="#9c8c7a">No data</text></svg>'
+    mn, mx = min(all_vals) - 0.05, max(all_vals) + 0.05
+
+    def px(i): return pad_l + i / max(len(months) - 1, 1) * plot_w
+    def py(v): return pad_t + (1 - (v - mn) / (mx - mn)) * plot_h
+
+    grids = ""
+    for tick_n in range(5):
+        tick_v = mn + (mx - mn) * tick_n / 4
+        y = py(tick_v)
+        grids += f'<line x1="{pad_l}" y1="{y:.1f}" x2="{w-pad_r}" y2="{y:.1f}" stroke="#e8e2da" stroke-width="1"/>'
+        grids += f'<text x="{pad_l-4}" y="{y+3:.1f}" font-size="8" fill="#9c8c7a" text-anchor="end">{tick_v:.2f}</text>'
+
+    xlabels = "".join(
+        f'<text x="{px(i):.1f}" y="{h-4}" font-size="9" fill="#9c8c7a" text-anchor="middle">{m}</text>'
+        for i, m in enumerate(months)
+    )
+
+    lines = ""
+    legend = ""
+    for si, (label, color, vals) in enumerate(series):
+        # Connect only non-None points
+        segments, seg = [], []
+        for i, v in enumerate(vals):
+            if v is not None:
+                seg.append((i, v))
+            else:
+                if len(seg) > 1:
+                    segments.append(seg)
+                seg = []
+        if len(seg) > 1:
+            segments.append(seg)
+        for seg in segments:
+            pts = " ".join(f"{px(i):.1f},{py(v):.1f}" for i, v in seg)
+            lines += f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>'
+        for i, v in enumerate(vals):
+            if v is not None:
+                lines += f'<circle cx="{px(i):.1f}" cy="{py(v):.1f}" r="3" fill="{color}" stroke="#fff" stroke-width="1.5"/>'
+        lx = pad_l + si * 110
+        legend += f'<circle cx="{lx+5}" cy="{h-2}" r="4" fill="{color}"/>'
+        legend += f'<text x="{lx+13}" y="{h+1}" font-size="9" fill="#6b5c4a">{label}</text>'
+
+    return f'''<svg width="100%" viewBox="0 0 {w} {h+12}" style="overflow:visible">
+  {grids}{xlabels}{lines}{legend}
+</svg>'''
 
 
 def radar_svg(categories, values, w=340, h=280):
@@ -710,7 +899,7 @@ def build_overview():
     stat_row = f"""
 <div class="stat-row">
   <div class="stat-card"><div class="stat-label">Total Reviews</div><div class="stat-value">{s['total_reviews']:,}</div><div class="stat-sub">{s['mom_change']} vs last month</div><div class="stat-icon">↗</div></div>
-  <div class="stat-card"><div class="stat-label">Avg Rating</div><div class="stat-value">{s['avg_rating']}/5</div><div class="stat-sub">last 30 days</div><div class="stat-icon">★</div></div>
+  <div class="stat-card"><div class="stat-label">Avg Rating</div><div class="stat-value">{s['avg_rating']}/5</div><div class="stat-sub">{DATA_DATE_RANGE}</div><div class="stat-icon">★</div></div>
   <div class="stat-card"><div class="stat-label">Negative Rate</div><div class="stat-value">{s['negative_rate']}%</div><div class="stat-sub">of all reviews</div><div class="stat-icon" style="color:#eb6834">↘</div></div>
   <div class="stat-card"><div class="stat-label">Neutral Rate</div><div class="stat-value">{s['neutral_rate']}%</div><div class="stat-sub">of all reviews</div><div class="stat-icon">—</div></div>
 </div>"""
@@ -720,7 +909,7 @@ def build_overview():
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
     <div class="card-title">Overall Sentiment</div>
-    <span class="gauge-badge">+50% MoM</span>
+    <span class="gauge-badge">{s['mom_change']} MoM</span>
   </div>
   <div class="gauge-wrap">
     {gauge}
@@ -813,25 +1002,22 @@ def build_reviews(filter_val="All", search=""):
         filtered = [r for r in filtered if s in r["name"].lower() or s in r["text"].lower()]
 
     cards = "".join(review_card_html(r) for r in filtered)
-    sort_row = f"""
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-  <div class="search-wrap" style="flex:1;position:relative;">
-    <span class="search-icon">🔍</span>
-    <input class="search-bar" placeholder="Search reviews or authors…" value="{search}"/>
-  </div>
-  <select style="padding:7px 10px;border:1px solid #e8e2da;border-radius:8px;font-size:12px;background:#fff;color:#6b5c4a;">
-    <option>All</option><option>Positive</option><option>Neutral</option><option>Negative</option>
-  </select>
-  <select style="padding:7px 10px;border:1px solid #e8e2da;border-radius:8px;font-size:12px;background:#fff;color:#6b5c4a;">
-    <option>Sort: Date</option><option>Sort: Rating</option>
-  </select>
-</div>"""
+    active_filters = []
+    if filter_val != "All":
+        active_filters.append(f"sentiment: <strong>{filter_val}</strong>")
+    if search:
+        active_filters.append(f"search: <strong>{search}</strong>")
+    filter_note = (
+        f'<p style="font-size:11px;color:#9c8c7a;margin-bottom:10px;">'
+        f'{len(filtered)} of {len(REVIEWS)} reviews'
+        + (f' · filtered by {", ".join(active_filters)}' if active_filters else "")
+        + '</p>'
+    )
 
     return f"""
 <div style="padding:0 28px 24px;">
-  <p style="font-size:12px;color:#9c8c7a;margin-bottom:14px;">All guest feedback · {len(REVIEWS):,} entries</p>
-  {sort_row}
-  <p style="font-size:11px;color:#9c8c7a;margin-bottom:10px;">{len(filtered)} reviews</p>
+  <p style="font-size:12px;color:#9c8c7a;margin-bottom:14px;">All guest feedback · {len(REVIEWS):,} entries · use the filter controls above to search</p>
+  {filter_note}
   {cards if cards else '<p style="color:#9c8c7a;font-size:12px;">No reviews match.</p>'}
 </div>"""
 
@@ -841,24 +1027,78 @@ def build_topics(category="All"):
     cards = "".join(topic_card_html(t) for t in items)
     radar = radar_svg(RADAR_CATEGORIES, RADAR_VALUES)
 
+    # Risk analysis table
+    _risk_color = {"HIGH": "#eb6834", "MEDIUM": "#eda100", "LOW": "#1baf7a"}
+    risk_rows_html = ""
+    for r in RISK_ROWS:
+        color = _risk_color.get(r["risk_level"], "#9c8c7a")
+        arrow = "↑" if r["pct_point_change"] > 0 else "↓"
+        rating_arrow = "↓" if r["rating_change"] < 0 else "↑"
+        risk_rows_html += f"""
+<tr>
+  <td style="padding:8px 12px;font-size:12px;font-weight:600;color:#1a1208;">{r["display"]}</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b5c4a;text-align:center;">{arrow} {abs(r["pct_point_change"]):.1f}pp</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b5c4a;text-align:center;">{rating_arrow} {abs(r["rating_change"]):.2f}</td>
+  <td style="padding:8px 12px;text-align:center;">
+    <span style="background:{color}22;color:{color};border-radius:10px;padding:2px 10px;font-size:10px;font-weight:700;">{r["risk_level"]}</span>
+  </td>
+</tr>"""
+
+    risk_card = f"""
+<div class="card" style="margin-top:14px;">
+  <div class="card-title">Pre-COVID Risk Analysis</div>
+  <div class="card-sub">Topic trends {DATA_DATE_RANGE} · first vs second half (pre-COVID)</div>
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="border-bottom:1px solid #e8e2da;">
+        <th style="padding:6px 12px;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#9c8c7a;text-align:left;">Topic</th>
+        <th style="padding:6px 12px;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#9c8c7a;text-align:center;">Mention trend</th>
+        <th style="padding:6px 12px;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#9c8c7a;text-align:center;">Rating Δ</th>
+        <th style="padding:6px 12px;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#9c8c7a;text-align:center;">Risk</th>
+      </tr>
+    </thead>
+    <tbody>{risk_rows_html}</tbody>
+  </table>
+</div>"""
+
     return f"""
 <div style="padding:0 28px 24px;">
-  <p style="font-size:12px;color:#9c8c7a;margin-bottom:14px;">Complaint &amp; praise category breakdown</p>
+  <p style="font-size:12px;color:#9c8c7a;margin-bottom:14px;">LDA-discovered topics · aspect-based sentiment analysis</p>
   <div class="topics-grid">{cards}</div>
   <div class="card" style="margin-top:14px;">
     <div class="card-title">Category Radar</div>
     <div style="margin-top:8px;">{radar}</div>
   </div>
+  {risk_card}
 </div>"""
 
 
 def build_trends(tab="Sentiment Score"):
+    _topic_colors = {
+        "room_bathroom":       "#eb6834",
+        "facilities_space":    "#eda100",
+        "location_transport":  "#1baf7a",
+        "service_hospitality": "#2a78d6",
+        "value_dining":        "#9b59b6",
+    }
+
     if tab == "Sentiment Score":
         chart = line_chart_svg(TREND_MONTHS, TREND_SCORES, color="#eda100", label="Score")
         title = "Sentiment Score Over Time"
     elif tab == "Pos / Neg Split":
-        chart = line_chart_svg(TREND_MONTHS, TREND_POSITIVE, color="#1baf7a", label="Positive %")
-        title = "Positive % Over Time"
+        chart = multi_line_chart_svg(TREND_MONTHS, [
+            ("Positive %", "#1baf7a", TREND_POSITIVE),
+            ("Negative %", "#eb6834", TREND_NEGATIVE),
+        ])
+        title = "Positive / Negative Split Over Time"
+    elif tab == "Aspect Sentiment":
+        series = [
+            (_LDA_TOPIC_DISPLAY[name], _topic_colors.get(name, "#888"),
+             TREND_ASPECT.get(name, [None]*6))
+            for name in _LDA_TOPIC_DISPLAY
+        ]
+        chart = multi_line_chart_svg(TREND_MONTHS, series)
+        title = "Aspect Sentiment by Topic Over Time"
     else:
         chart = line_chart_svg(TREND_MONTHS, TREND_VOLUME, color="#2a78d6", label="Reviews")
         title = "Review Volume Over Time"
@@ -882,12 +1122,13 @@ def build_trends(tab="Sentiment Score"):
   </div>
 </div>"""
 
+    months_label = f"{TREND_MONTHS[0]} – {TREND_MONTHS[-1]} {TREND_YEAR_RANGE}"
     return f"""
 <div style="padding:0 28px 24px;">
-  <p style="font-size:12px;color:#9c8c7a;margin-bottom:14px;">Sentiment over time · Apr – Sep 2019</p>
+  <p style="font-size:12px;color:#9c8c7a;margin-bottom:14px;">Sentiment over time · {months_label}</p>
   <div class="card">
     <div class="card-title">{title}</div>
-    <div class="card-sub">April – September 2019</div>
+    <div class="card-sub">{months_label}</div>
     {chart}
   </div>
   {stat_cards}
@@ -897,19 +1138,19 @@ def build_trends(tab="Sentiment Score"):
 def build_reports():
     reports = [
         {"type": "PDF", "title": "Sentiment Analysis Report",
-         "desc": "Full breakdown of 641 Booking.com reviews for Motel One Brussels — sentiment scores, complaint categories, and guest feedback patterns.",
+         "desc": f"Full breakdown of {STATS['total_reviews']} Booking.com reviews for Motel One Brussels — sentiment scores, complaint categories, and guest feedback patterns.",
          "date": "Jul 2021", "size": "2.1 MB"},
         {"type": "PDF", "title": "Top Complaints Analysis",
          "desc": "Deep-dive into the 4 topics with negative rating impact: Room quality, Check-in experience, Noise levels, and Wi-Fi quality.",
          "date": "Jul 2021", "size": "980 KB"},
         {"type": "CSV", "title": "Sentiment Trend Data",
-         "desc": "Raw monthly sentiment and volume data from Aug 2018 through Feb 2020, suitable for further analysis.",
+         "desc": f"Raw monthly sentiment and volume data from {DATA_DATE_RANGE}, suitable for further analysis.",
          "date": "Jul 2021", "size": "38 KB"},
         {"type": "CSV", "title": "Word Frequency Export",
-         "desc": "Complete word frequency table with sentiment labels from all 641 reviews.",
+         "desc": f"Complete word frequency table with sentiment labels from all {STATS['total_reviews']} reviews.",
          "date": "Jul 2021", "size": "95 KB"},
         {"type": "PDF", "title": "Business Impact Score Summary",
-         "desc": "Priority ranking of all 8 topics by business impact score — combining rating impact, frequency, reach, and sentiment severity.",
+         "desc": f"Priority ranking of all {len(TOPICS)} LDA topics by business impact score — combining rating impact, frequency, reach, and aspect sentiment severity.",
          "date": "Jul 2021", "size": "410 KB"},
     ]
     cards = []
@@ -935,102 +1176,6 @@ def build_reports():
 
 
 
-CHAT_WIDGET = ""  # injected via gr.Blocks js instead
-
-CHAT_JS = """
-() => {
-  // inject chat widget into the main page (outside any iframe)
-  if (document.getElementById('chat-fab')) return;
-
-  const style = document.createElement('style');
-  style.textContent = `
-    #chat-fab{position:fixed;bottom:24px;right:24px;z-index:9999;width:50px;height:50px;border-radius:50%;background:#1a1208;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;}
-    #chat-popup{position:fixed;bottom:86px;right:24px;z-index:9998;width:440px;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,0.18);display:none;flex-direction:column;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;}
-    #chat-popup.open{display:flex;}
-    #chat-head{background:#1a1208;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;}
-    #chat-head .t{font-size:15px;font-weight:700;}
-    #chat-head .s{font-size:11px;color:#9c8c7a;margin-top:2px;}
-    #chat-close{background:none;border:none;color:#9c8c7a;font-size:18px;cursor:pointer;line-height:1;padding:0;}
-    #chat-messages{padding:14px;height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
-    .cm-bot,.cm-user{max-width:88%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.6;}
-    .cm-bot{background:#f0ede8;color:#1a1208;align-self:flex-start;}
-    .cm-bot strong{font-weight:700;}
-    .cm-bot ul{margin:4px 0 4px 16px;padding:0;}
-    .cm-bot li{margin:2px 0;}
-    .cm-user{background:#1a1208;color:#fff;align-self:flex-end;}
-    #chat-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #e8e2da;}
-    #chat-text{flex:1;padding:7px 12px;border:1px solid #e8e2da;border-radius:8px;font-size:12px;outline:none;background:#fafaf8;}
-    #chat-send{width:34px;height:34px;border-radius:8px;background:#c9a48e;border:none;cursor:pointer;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;}
-  `;
-  document.head.appendChild(style);
-
-  document.body.insertAdjacentHTML('beforeend', `
-    <button id="chat-fab" onclick="chatToggle()">💬</button>
-    <div id="chat-popup">
-      <div id="chat-head">
-        <div><div class="t">Review Assistant</div><div class="s">AI · hotel analytics</div></div>
-        <button id="chat-close" onclick="chatToggle()">✕</button>
-      </div>
-      <div id="chat-messages">
-        <div class="cm-bot">Hello! I'm your hotel review assistant. Ask me anything about your review data — complaints, sentiment trends, guest feedback patterns.</div>
-      </div>
-      <div id="chat-input-row">
-        <input id="chat-text" type="text" placeholder="Ask about complaints, sentiment…" onkeydown="if(event.key==='Enter')chatSend()"/>
-        <button id="chat-send" onclick="chatSend()">➤</button>
-      </div>
-    </div>
-  `);
-
-  window.chatHistory = [];
-
-  // Minimal markdown → HTML renderer
-  window.mdToHtml = function(text) {
-    return text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      // headings → bold paragraph
-      .replace(/^#{1,3} (.+)$/gm, '<strong>$1</strong>')
-      // bold
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      // bullet lists
-      .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-      // wrap consecutive <li> in <ul>
-      .replace(/(<li>.*<\/li>\n?)+/gs, m => '<ul>' + m + '</ul>')
-      // line breaks
-      .replace(/\n{2,}/g, '<br><br>')
-      .replace(/\n/g, '<br>');
-  };
-
-  window.chatToggle = function() {
-    document.getElementById('chat-popup').classList.toggle('open');
-  };
-
-  window.chatSend = async function() {
-    const inp = document.getElementById('chat-text');
-    const msg = inp.value.trim();
-    if (!msg) return;
-    inp.value = '';
-    const box = document.getElementById('chat-messages');
-    box.innerHTML += '<div class="cm-user">' + msg.replace(/</g,'&lt;') + '</div>';
-    box.scrollTop = box.scrollHeight;
-    const thinking = document.createElement('div');
-    thinking.className = 'cm-bot'; thinking.textContent = '…';
-    box.appendChild(thinking); box.scrollTop = box.scrollHeight;
-    try {
-      const r = await fetch('/chat', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({message: msg, history: window.chatHistory})
-      });
-      const d = await r.json();
-      thinking.innerHTML = window.mdToHtml(d.reply);
-      window.chatHistory.push([msg, d.reply]);
-    } catch(e) {
-      thinking.textContent = '(Error reaching assistant)';
-    }
-    box.scrollTop = box.scrollHeight;
-  };
-}
-"""
 
 
 def full_page_html(active_page, page_content):
@@ -1058,19 +1203,26 @@ def full_page_html(active_page, page_content):
 # ── AI chat helpers ───────────────────────────────────────────────────────────
 _problems   = [t for t in _data["topic_rows"] if t["rating_impact"] < 0]
 _strengths  = [t for t in _data["topic_rows"] if t["rating_impact"] >= 0]
-_prob_str   = ", ".join(f"{_TOPIC_DISPLAY[t['key']]} ({t['mentions']} mentions, {t['rating_impact']:+.2f} stars)"
+_prob_str   = ", ".join(f"{_LDA_TOPIC_DISPLAY[t['key']]} ({t['mentions']} mentions, {t['rating_impact']:+.2f} stars)"
                         for t in sorted(_problems, key=lambda x: x["mentions"], reverse=True))
-_str_str    = ", ".join(f"{_TOPIC_DISPLAY[t['key']]} ({t['positive_pct']}% positive)"
+_str_str    = ", ".join(f"{_LDA_TOPIC_DISPLAY[t['key']]} ({t['positive_pct']}% positive)"
                         for t in sorted(_strengths, key=lambda x: x["positive_pct"], reverse=True))
+_risk_str   = ", ".join(f"{r['display']} ({r['risk_level']}, mention trend {r['pct_point_change']:+.1f}pp, rating {r['rating_change']:+.2f})"
+                        for r in sorted(RISK_ROWS, key=lambda x: {"HIGH":0,"MEDIUM":1,"LOW":2}[x["risk_level"]]))
 
 SYSTEM_PROMPT = f"""You are a hotel review analytics assistant for Motel One Brussels.
-You have access to the following dashboard data from {STATS['total_reviews']} Booking.com reviews:
-- Average rating: {STATS['avg_rating']}/5 (on a 10-point scale: {round(STATS['avg_rating'] * 2, 1)}/10)
+You have access to the following dashboard data from {STATS['total_reviews']} Booking.com reviews ({DATA_DATE_RANGE}).
+Topics are discovered by LDA machine learning (5 topics). Sentiment uses Aspect-Based Sentiment Analysis (ABSA).
+
+Key metrics:
+- Average rating: {STATS['avg_rating']}/5 ({round(STATS['avg_rating'] * 2, 1)}/10)
 - Sentiment: {STATS['positive_pct']}% positive, {STATS['neutral_pct']}% neutral, {STATS['negative_pct']}% negative
 - Sentiment score: {STATS['sentiment_score']}/100
-- Topics with negative rating impact (problems to fix): {_prob_str}
-- Top strengths: {_str_str}
-- Best month: {_data['best_month_label']} (score {_data['best_score']}), Worst month: {_data['worst_month_label']} (score {_data['worst_score']})
+- Topics with negative rating impact: {_prob_str}
+- Strengths: {_str_str}
+- Best month: {_data['best_month_label']} (score {_data['best_score']}), Worst: {_data['worst_month_label']} (score {_data['worst_score']})
+- Pre-COVID risk analysis: {_risk_str}
+
 Reply in short, clear sentences. Use bullet points sparingly — only when listing 3+ items. Avoid large headers. Keep answers concise and actionable."""
 
 
@@ -1094,26 +1246,6 @@ def chat_response(message, history):
 
 
 # ── Gradio app ────────────────────────────────────────────────────────────────
-
-def render_overview():
-    content = build_overview()
-    return full_page_html("Overview", content)
-
-def render_reviews(filter_val, search):
-    content = build_reviews(filter_val, search)
-    return full_page_html("Reviews", content)
-
-def render_topics(category):
-    content = build_topics(category)
-    return full_page_html("Topics", content)
-
-def render_trends(tab):
-    content = build_trends(tab)
-    return full_page_html("Trends", content)
-
-def render_reports():
-    content = build_reports()
-    return full_page_html("Reports", content)
 
 
 NAV_CSS = """
@@ -1223,7 +1355,7 @@ with gr.Blocks(css=CSS + NAV_CSS, title="Hotel Review Dashboard") as demo:
                 for icon, label in zip(NAV_ICONS, PAGES):
                     btn = gr.Button(f"{icon}  {label}", elem_classes=["nav-btn-active" if label == "Overview" else "nav-btn"])
                     nav_buttons.append(btn)
-            gr.Markdown("Motel One Brussels\n2018–2021 · 641 reviews", elem_id="nav-footer")
+            gr.Markdown(f"Motel One Brussels\n2018–2021 · {STATS['total_reviews']} reviews", elem_id="nav-footer")
 
         # ── Content ────────────────────────────────────────────────
         with gr.Column(scale=1, elem_id="content-col"):
@@ -1232,9 +1364,9 @@ with gr.Blocks(css=CSS + NAV_CSS, title="Hotel Review Dashboard") as demo:
                                          show_label=False, visible=False)
                 review_search = gr.Textbox(placeholder="Search…", show_label=False,
                                            visible=False, scale=3)
-                topic_filter  = gr.Radio(["All","Facilities","Service","Housekeeping","F&B","Rooms","General"],
+                topic_filter  = gr.Radio(["All","Facilities","Service","Rooms","General","F&B"],
                                           value="All", show_label=False, visible=False)
-                trend_tab_sel = gr.Radio(["Sentiment Score","Pos / Neg Split","Review Volume"],
+                trend_tab_sel = gr.Radio(["Sentiment Score","Pos / Neg Split","Review Volume","Aspect Sentiment"],
                                           value="Sentiment Score", show_label=False, visible=False)
 
             content_html = gr.HTML(page_content_html("Overview"))
