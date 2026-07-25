@@ -1,5 +1,5 @@
 {
-  "service_hospitality": [
+  "facilities_space": [
     {
       "rating": 4.2,
       "sentiment": -0.9782,
@@ -31,7 +31,19 @@
       "text": "don\u2019t deserve the money you payed for, no hot water wasn\u2019t working , no phone in the room to call the reception , no safe no wardrobe"
     }
   ],
-  "room_bathroom": [
+  "accommodation_type": [
+    {
+      "rating": 4.2,
+      "sentiment": -0.9782,
+      "date": "2019-09-16",
+      "text": "The reason people book hotels for their time away from home is to have a roof over their heads and an opportunity to wash themselves. Motel One somehow almost failed both these basic tourist needs for us. Yes, \u201calmost\u201d is the key word here, but the mood and first impression were ruined. I\u2019ll tell you my story. The day before our booking date I receive an email from booking.com saying my credit card is invalid (my bad, forgot to update it before the trip). It says that unless I updated it within 24 hours, my booking will be cancelled. No big deal, I update it within an hour after the email. In the app my status is changed to \u201cbooking confirmed\u201d again. Guess what happened at the front desk? That\u2019s right: they cancelled my damn booking. Absolutely not willing to help and looking at my CONFIRMED booking in the app he doesn\u2019t even apologize. The only room available on the spot is business suite. It seems I don\u2019t have another choice - I pay for business suite: this was about \u201calmost no roof over my head\u201d. What if I was a traveler on budget? What if I simply didn\u2019t have enough money? Not their problem. Cherry on top to the check-in: it was towards midnight and THERE WAS A LINE for check-in. We waited for 25 minutes only to learn that we\u2019ve been cancelled. Another cherry: they blamed Booking.com for not sending an email about cancellation (remember this, it\u2019s important for later). What\u2019s up with lines at midnight? I\u2019ll tell you. The hotel is HUGE. It\u2019s enormous. And only TWO people and the front desk. In our case they called a third one, but it was still 25+ minutes. For this very reason don\u2019t expect special treatment (not even a smile!) because you are not special when there are hundreds of guests. The shower thing. One morning it turns they don\u2019t have hot water. Just no hot water. For me this was strike two. No phones in the room so we go downstairs to ask. As expected, there are a lot of people waiting (in the line, of course) to be explained. Pipes, they say."
+    },
+    {
+      "rating": 4.6,
+      "sentiment": -0.9326,
+      "date": "2019-10-14",
+      "text": "It is a scandalous to rate this hotel as high the way it appears in the booking site after so many customer complains. As for our 3 night stay - NO hot water for a night and a morning after before a most important meeting in the three days of our stay. The staff didn't do anything (except some artificial smiles which actually were expression of arogance and rudeness) We have been waiting for an answer (as was promised) from the manager on the compensation that we deserve to get ....until now not even an apology! As consistent customer of booking - I am disappointed with you guys . I can't rely on your \" trustful\" rating ... (You hide the negative responses and you don't highlight enough the negative responses - apparently you don't play any role in pushing such institution as this to improve. I will have to consider to switch to another supplier!, The location"
+    },
     {
       "rating": 5.8,
       "sentiment": -0.9061,
@@ -45,10 +57,30 @@
       "text": "Very noisy, I didn't sleep all night from the street noises... Terrible noise isolation"
     },
     {
+      "rating": 6.3,
+      "sentiment": -0.6017,
+      "date": "2019-09-13",
+      "text": "don\u2019t deserve the money you payed for, no hot water wasn\u2019t working , no phone in the room to call the reception , no safe no wardrobe"
+    }
+  ],
+  "room_bathroom": [
+    {
+      "rating": 5.8,
+      "sentiment": -0.9061,
+      "date": "2018-12-30",
+      "text": "Breakfast quality is quite poor and doesn't include many options (also, there's very little for vegans/vegetarians). Smoke alarm went on and off on the 7th floor where I stayed for quite a while, there was no option to quickly report it unless I just went downstairs. There was a domestic conflict in the corridor, a coupe yelling at each other in French. They were arguing outside my room for half an hour, half naked. I should have booked IBIS."
+    },
+    {
       "rating": 3.0,
       "sentiment": -0.7225,
       "date": "2019-12-08",
       "text": "We arrived after midnight, we booked a room for 2 person, but we got a single room only, one towel, one blanket.... Was not so comfortable. We called the reception, but nothing happened, we just got a sorry in morning."
+    },
+    {
+      "rating": 6.3,
+      "sentiment": -0.5484,
+      "date": "2019-03-21",
+      "text": "Nothing in the room, No water, no coffee and tea facilities as a standard. and no Ice machine in each floor. no glasses for drink at least paper glasses. No hand towel and face towel., Location, Lobby, and parking spot. the room is clean and basic."
     },
     {
       "rating": 6.7,

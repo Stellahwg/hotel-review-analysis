@@ -11,46 +11,46 @@
       "topic": "room_bathroom",
       "risk_level": "MEDIUM",
       "outlook": "WORSENING",
-      "first_half_pct": 44.982698961937714,
-      "second_half_pct": 48.92966360856269,
-      "pct_point_change": 3.946964646624977,
-      "rating_change": -0.057403846153846416
+      "first_half_pct": 60.89965397923876,
+      "second_half_pct": 66.97247706422019,
+      "pct_point_change": 6.0728230849814295,
+      "rating_change": -0.0035932959734328307
     },
     {
-      "topic": "service_hospitality",
+      "topic": "accommodation_type",
       "risk_level": "MEDIUM",
       "outlook": "WORSENING",
-      "first_half_pct": 32.8719723183391,
-      "second_half_pct": 36.391437308868504,
-      "pct_point_change": 3.519464990529407,
-      "rating_change": -0.5475630252100849
+      "first_half_pct": 37.71626297577855,
+      "second_half_pct": 41.59021406727829,
+      "pct_point_change": 3.873951091499741,
+      "rating_change": -0.14082568807339335
     },
     {
-      "topic": "value_dining",
-      "risk_level": "LOW",
-      "outlook": "IMPROVING",
-      "first_half_pct": 43.25259515570934,
-      "second_half_pct": 38.53211009174312,
-      "pct_point_change": -4.720485063966223,
-      "rating_change": -0.04427936507936536
+      "topic": "facilities_space",
+      "risk_level": "MEDIUM",
+      "outlook": "STABLE",
+      "first_half_pct": 29.757785467128027,
+      "second_half_pct": 26.911314984709477,
+      "pct_point_change": -2.8464704824185496,
+      "rating_change": -0.7534090909090914
     },
     {
       "topic": "location_transport",
       "risk_level": "LOW",
       "outlook": "STABLE",
-      "first_half_pct": 52.94117647058824,
-      "second_half_pct": 50.45871559633027,
-      "pct_point_change": -2.482460874257967,
-      "rating_change": -0.02455139631610237
+      "first_half_pct": 37.37024221453287,
+      "second_half_pct": 35.47400611620795,
+      "pct_point_change": -1.8962360983249198,
+      "rating_change": 0.009099616858238235
     },
     {
-      "topic": "facilities_space",
+      "topic": "service_hospitality",
       "risk_level": "LOW",
-      "outlook": "STABLE",
-      "first_half_pct": 44.29065743944637,
-      "second_half_pct": 45.25993883792049,
-      "pct_point_change": 0.9692813984741164,
-      "rating_change": 0.18243243243243157
+      "outlook": "IMPROVING",
+      "first_half_pct": 52.24913494809689,
+      "second_half_pct": 44.95412844036697,
+      "pct_point_change": -7.295006507729916,
+      "rating_change": 0.25773302698562794
     }
   ]
 }
