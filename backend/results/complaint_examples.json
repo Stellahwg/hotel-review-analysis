@@ -1,98 +1,66 @@
 {
-  "room_bathroom": [
+  "service_hospitality": [
     {
-      "rating": 6.3,
-      "sentiment": -0.2,
-      "date": "2018-11-26",
-      "text": "Only giving one towel for 2 adults room was poor, hope they will fix it."
-    },
-    {
-      "rating": 6.3,
-      "sentiment": -0.1875,
-      "date": "2019-09-13",
-      "text": "don\u2019t deserve the money you payed for, no hot water wasn\u2019t working , no phone in the room to call the reception , no safe no wardrobe"
-    },
-    {
-      "rating": 5.8,
-      "sentiment": -0.07708333333333335,
-      "date": "2019-10-06",
-      "text": "No hot water in the bathroom - a quick apology is what I got. The shower head in room 745 had a leak and dropped all day/night long. Pillows were tall and hard - not conducive of a restful sleep. Breakfast buffet is the only option for almost 12\u20ac even if you just want a cup of coffee. Breakfast people overflows to the lobby area making it very busy and noisy. Staff seemed overwhelmed both during check in and check out times. A very disappointing stay., Hotel sits on a main road so it\u2019s well connected. Room and bathroom were well cleaned."
-    },
-    {
-      "rating": 3.0,
-      "sentiment": -0.042857142857142844,
-      "date": "2019-12-08",
-      "text": "We arrived after midnight, we booked a room for 2 person, but we got a single room only, one towel, one blanket.... Was not so comfortable. We called the reception, but nothing happened, we just got a sorry in morning."
+      "rating": 4.2,
+      "sentiment": -0.9782,
+      "date": "2019-09-16",
+      "text": "The reason people book hotels for their time away from home is to have a roof over their heads and an opportunity to wash themselves. Motel One somehow almost failed both these basic tourist needs for us. Yes, \u201calmost\u201d is the key word here, but the mood and first impression were ruined. I\u2019ll tell you my story. The day before our booking date I receive an email from booking.com saying my credit card is invalid (my bad, forgot to update it before the trip). It says that unless I updated it within 24 hours, my booking will be cancelled. No big deal, I update it within an hour after the email. In the app my status is changed to \u201cbooking confirmed\u201d again. Guess what happened at the front desk? That\u2019s right: they cancelled my damn booking. Absolutely not willing to help and looking at my CONFIRMED booking in the app he doesn\u2019t even apologize. The only room available on the spot is business suite. It seems I don\u2019t have another choice - I pay for business suite: this was about \u201calmost no roof over my head\u201d. What if I was a traveler on budget? What if I simply didn\u2019t have enough money? Not their problem. Cherry on top to the check-in: it was towards midnight and THERE WAS A LINE for check-in. We waited for 25 minutes only to learn that we\u2019ve been cancelled. Another cherry: they blamed Booking.com for not sending an email about cancellation (remember this, it\u2019s important for later). What\u2019s up with lines at midnight? I\u2019ll tell you. The hotel is HUGE. It\u2019s enormous. And only TWO people and the front desk. In our case they called a third one, but it was still 25+ minutes. For this very reason don\u2019t expect special treatment (not even a smile!) because you are not special when there are hundreds of guests. The shower thing. One morning it turns they don\u2019t have hot water. Just no hot water. For me this was strike two. No phones in the room so we go downstairs to ask. As expected, there are a lot of people waiting (in the line, of course) to be explained. Pipes, they say."
     },
     {
       "rating": 4.6,
-      "sentiment": -0.01535714285714286,
+      "sentiment": -0.9326,
       "date": "2019-10-14",
       "text": "It is a scandalous to rate this hotel as high the way it appears in the booking site after so many customer complains. As for our 3 night stay - NO hot water for a night and a morning after before a most important meeting in the three days of our stay. The staff didn't do anything (except some artificial smiles which actually were expression of arogance and rudeness) We have been waiting for an answer (as was promised) from the manager on the compensation that we deserve to get ....until now not even an apology! As consistent customer of booking - I am disappointed with you guys . I can't rely on your \" trustful\" rating ... (You hide the negative responses and you don't highlight enough the negative responses - apparently you don't play any role in pushing such institution as this to improve. I will have to consider to switch to another supplier!, The location"
-    }
-  ],
-  "facilities_space": [
-    {
-      "rating": 5.4,
-      "sentiment": -0.4,
-      "date": "2019-01-15",
-      "text": "Very noisy, I didn't sleep all night from the street noises... Terrible noise isolation"
     },
     {
       "rating": 5.8,
-      "sentiment": -0.07708333333333335,
-      "date": "2019-10-06",
-      "text": "No hot water in the bathroom - a quick apology is what I got. The shower head in room 745 had a leak and dropped all day/night long. Pillows were tall and hard - not conducive of a restful sleep. Breakfast buffet is the only option for almost 12\u20ac even if you just want a cup of coffee. Breakfast people overflows to the lobby area making it very busy and noisy. Staff seemed overwhelmed both during check in and check out times. A very disappointing stay., Hotel sits on a main road so it\u2019s well connected. Room and bathroom were well cleaned."
-    },
-    {
-      "rating": 6.3,
-      "sentiment": -0.05,
-      "date": "2019-12-13",
-      "text": "Noise from outside, such as tram and cars speeding by. The room was not sound proof enough., Design."
-    },
-    {
-      "rating": 6.3,
-      "sentiment": -0.03333333333333333,
-      "date": "2019-02-25",
-      "text": "The rooms toilet was been used before someone else"
-    },
-    {
-      "rating": 6.7,
-      "sentiment": -0.001470588235294119,
-      "date": "2018-11-21",
-      "text": "The internet didn't work during my whole stay and although I kept asking for assistance at the front desk (no phone in the rooms to solve these issues) the problem persisted. The worst is that I had to explain myself as if it was me who was doing something wrong when the internet did't work in any of my three devices. So I kept repeating the same explanations to different people in the front desk who did nothing to solve the problem. Quite annoying experience, I must say, especially when the internet is the only \"extra\" service that this hotel offers., Comfortable bed in a somewhat austere cadre that offers you strictly what you need to get some rest. No extras of any kind (no kettle in the rooms or phone or wardrobe or safe or room service or any other amenity that may make your life easier). Only recommended if you're going to Brussels for work and planning to spend most of the time out of hotel and just go there to sleep."
-    }
-  ],
-  "location_transport": [
-    {
-      "rating": 5.4,
-      "sentiment": -0.4,
-      "date": "2019-01-15",
-      "text": "Very noisy, I didn't sleep all night from the street noises... Terrible noise isolation"
-    },
-    {
-      "rating": 6.3,
-      "sentiment": -0.1875,
-      "date": "2019-09-13",
-      "text": "don\u2019t deserve the money you payed for, no hot water wasn\u2019t working , no phone in the room to call the reception , no safe no wardrobe"
-    },
-    {
-      "rating": 5.8,
-      "sentiment": -0.07708333333333335,
-      "date": "2019-10-06",
-      "text": "No hot water in the bathroom - a quick apology is what I got. The shower head in room 745 had a leak and dropped all day/night long. Pillows were tall and hard - not conducive of a restful sleep. Breakfast buffet is the only option for almost 12\u20ac even if you just want a cup of coffee. Breakfast people overflows to the lobby area making it very busy and noisy. Staff seemed overwhelmed both during check in and check out times. A very disappointing stay., Hotel sits on a main road so it\u2019s well connected. Room and bathroom were well cleaned."
-    },
-    {
-      "rating": 5.8,
-      "sentiment": -0.024431818181818186,
+      "sentiment": -0.9061,
       "date": "2018-12-30",
       "text": "Breakfast quality is quite poor and doesn't include many options (also, there's very little for vegans/vegetarians). Smoke alarm went on and off on the 7th floor where I stayed for quite a while, there was no option to quickly report it unless I just went downstairs. There was a domestic conflict in the corridor, a coupe yelling at each other in French. They were arguing outside my room for half an hour, half naked. I should have booked IBIS."
     },
     {
-      "rating": 4.6,
-      "sentiment": -0.01535714285714286,
-      "date": "2019-10-14",
-      "text": "It is a scandalous to rate this hotel as high the way it appears in the booking site after so many customer complains. As for our 3 night stay - NO hot water for a night and a morning after before a most important meeting in the three days of our stay. The staff didn't do anything (except some artificial smiles which actually were expression of arogance and rudeness) We have been waiting for an answer (as was promised) from the manager on the compensation that we deserve to get ....until now not even an apology! As consistent customer of booking - I am disappointed with you guys . I can't rely on your \" trustful\" rating ... (You hide the negative responses and you don't highlight enough the negative responses - apparently you don't play any role in pushing such institution as this to improve. I will have to consider to switch to another supplier!, The location"
+      "rating": 3.0,
+      "sentiment": -0.7225,
+      "date": "2019-12-08",
+      "text": "We arrived after midnight, we booked a room for 2 person, but we got a single room only, one towel, one blanket.... Was not so comfortable. We called the reception, but nothing happened, we just got a sorry in morning."
+    },
+    {
+      "rating": 6.3,
+      "sentiment": -0.6017,
+      "date": "2019-09-13",
+      "text": "don\u2019t deserve the money you payed for, no hot water wasn\u2019t working , no phone in the room to call the reception , no safe no wardrobe"
+    }
+  ],
+  "room_bathroom": [
+    {
+      "rating": 5.8,
+      "sentiment": -0.9061,
+      "date": "2018-12-30",
+      "text": "Breakfast quality is quite poor and doesn't include many options (also, there's very little for vegans/vegetarians). Smoke alarm went on and off on the 7th floor where I stayed for quite a while, there was no option to quickly report it unless I just went downstairs. There was a domestic conflict in the corridor, a coupe yelling at each other in French. They were arguing outside my room for half an hour, half naked. I should have booked IBIS."
+    },
+    {
+      "rating": 5.4,
+      "sentiment": -0.7778,
+      "date": "2019-01-15",
+      "text": "Very noisy, I didn't sleep all night from the street noises... Terrible noise isolation"
+    },
+    {
+      "rating": 3.0,
+      "sentiment": -0.7225,
+      "date": "2019-12-08",
+      "text": "We arrived after midnight, we booked a room for 2 person, but we got a single room only, one towel, one blanket.... Was not so comfortable. We called the reception, but nothing happened, we just got a sorry in morning."
+    },
+    {
+      "rating": 6.7,
+      "sentiment": -0.5244,
+      "date": "2018-11-21",
+      "text": "The internet didn't work during my whole stay and although I kept asking for assistance at the front desk (no phone in the rooms to solve these issues) the problem persisted. The worst is that I had to explain myself as if it was me who was doing something wrong when the internet did't work in any of my three devices. So I kept repeating the same explanations to different people in the front desk who did nothing to solve the problem. Quite annoying experience, I must say, especially when the internet is the only \"extra\" service that this hotel offers., Comfortable bed in a somewhat austere cadre that offers you strictly what you need to get some rest. No extras of any kind (no kettle in the rooms or phone or wardrobe or safe or room service or any other amenity that may make your life easier). Only recommended if you're going to Brussels for work and planning to spend most of the time out of hotel and just go there to sleep."
+    },
+    {
+      "rating": 1.0,
+      "sentiment": -0.453,
+      "date": "2019-11-22",
+      "text": "Let's start from beginning - check in goes very smooth, fast and efficient. You are charged full amount of your stay straight away at the beginning of your stay - that seems to be standard procedure from the Hotels that have very high percentage of customers being dissatisfied about quality and the product being offered. After quick check in we arrived at our room - I will remind everyone here - it's a 3 Star Hotel! Standard room - small, that barely 2 people can fit in it, not talking about luggages. In the middle of the room there is bed, standard bed, queen size in our case, and nothing else!!! On both sides of the bed there were 2 wooden shelves - it looked like the shelves taken from my grandpa old garage. No deposit box or safe! No minibar or fridge! No telephone in the room! No tea or coffee making facilities! No room service - if you wanna have a tea you gotta go down to bar and buy it there! It's 21st Century - even homestays offer kettle in their rooms! Bathroom was so small that you can barely move around - of course no shelves or place to put your cosmetics! We decided not to stay any minute longer in that place! 15 minutes after check in we went down to reception to check out (we suppose to stay in this place for 4 nights). On our way out we have been informed by receptionist to contact Hotel Management about refund for remaining 3 nights - either via phone or email. Unfortunately despite many attempts to contact property both via email and phone nobody ever replies or picks up the phone! We spent the rest of our weekend in Brussels in the proper HOTEL., Near Centre location was the only positive aspect of our very short stay in this so called 3* Hotel."
     }
   ]
 }
