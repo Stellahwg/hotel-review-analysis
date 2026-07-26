@@ -10,7 +10,7 @@
     {
       "topic": "room_bathroom",
       "risk_level": "MEDIUM",
-      "outlook": "WORSENING",
+      "outlook": "STABLE",
       "first_half_pct": 60.89965397923876,
       "second_half_pct": 66.97247706422019,
       "pct_point_change": 6.0728230849814295,
@@ -19,7 +19,7 @@
     {
       "topic": "accommodation_type",
       "risk_level": "MEDIUM",
-      "outlook": "WORSENING",
+      "outlook": "STABLE",
       "first_half_pct": 37.71626297577855,
       "second_half_pct": 41.59021406727829,
       "pct_point_change": 3.873951091499741,
@@ -28,7 +28,7 @@
     {
       "topic": "facilities_space",
       "risk_level": "MEDIUM",
-      "outlook": "STABLE",
+      "outlook": "IMPROVING",
       "first_half_pct": 29.757785467128027,
       "second_half_pct": 26.911314984709477,
       "pct_point_change": -2.8464704824185496,
