@@ -272,11 +272,6 @@ def compute_data():
     )
     topics_list = sorted(topic_rows, key=lambda x: x["mentions"], reverse=True)
 
-    # Radar: built dynamically from whatever topics exist in the JSON
-    radar_cats = [_topic_display(k) for k in topic_keys]
-    topic_pct  = {r["key"]: r["positive_pct"] for r in topic_rows}
-    radar_vals = [round(topic_pct.get(k, 50) / 100, 2) for k in topic_keys]
-
     return {
         "stats": {
             "total_reviews": total,
@@ -307,8 +302,6 @@ def compute_data():
         "trend_negative":  trend_negative,
         "trend_volume":    trend_volume,
         "trend_aspect":    trend_aspect,
-        "radar_categories": radar_cats,
-        "radar_values":    radar_vals,
         "best_month_label":  best_month_label,
         "worst_month_label": worst_month_label,
         "best_score":      best_score,
@@ -1272,7 +1265,7 @@ _str_str    = ", ".join(f"{_topic_display(t['key'])} ({t['positive_pct']}% posit
 _risk_str   = ", ".join(f"{r['display']} ({r['risk_level']}, mention trend {r['pct_point_change']:+.1f}pp, rating {r['rating_change']:+.2f})"
                         for r in sorted(RISK_ROWS, key=lambda x: {"HIGH":0,"MEDIUM":1,"LOW":2}[x["risk_level"]]))
 
-SYSTEM_PROMPT = f"""You are a hotel review analytics assistant for Motel One Brussels.
+SYSTEM_PROMPT = f"""You are ReviewRadar, a hotel review analytics assistant for Motel One Brussels.
 You have access to the following dashboard data from {STATS['total_reviews']} Booking.com reviews ({DATA_DATE_RANGE}).
 Topics are discovered by LDA machine learning (5 topics). Sentiment uses Aspect-Based Sentiment Analysis (ABSA).
 
@@ -1403,7 +1396,7 @@ def sub_filters_visible(page):
     )
 
 
-with gr.Blocks(css=CSS + NAV_CSS, title="Hotel Review Dashboard") as demo:
+with gr.Blocks(css=CSS + NAV_CSS, title="ReviewRadar") as demo:
 
     current_page = gr.State("Overview")
 
@@ -1411,7 +1404,7 @@ with gr.Blocks(css=CSS + NAV_CSS, title="Hotel Review Dashboard") as demo:
 
         # ── Sidebar ────────────────────────────────────────────────
         with gr.Column(scale=0, min_width=160, elem_id="nav-col"):
-            gr.Markdown("**Hotel Review Dashboard**", elem_id="nav-brand")
+            gr.Markdown("**ReviewRadar**", elem_id="nav-brand")
             with gr.Column(elem_id="nav-btns"):
                 nav_buttons = []
                 for icon, label in zip(NAV_ICONS, PAGES):
@@ -1551,7 +1544,7 @@ CHAT_SNIPPET = """
         <button id="chat-close" onclick="chatToggle()">✕</button>
       </div>
       <div id="chat-messages">
-        <div class="cm-bot">Hello! I'm your hotel review assistant. Ask me anything about the data — complaints, sentiment trends, guest feedback patterns.</div>
+        <div class="cm-bot">Hello! I'm the ReviewRadar assistant. Ask me anything about the data — complaints, sentiment trends, guest feedback patterns.</div>
       </div>
       <div id="chat-input-row">
         <input id="chat-text" type="text" placeholder="Ask about complaints, sentiment…"/>
